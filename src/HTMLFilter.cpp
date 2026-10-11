@@ -1,11 +1,11 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "murmur_pch.h"
-
 #include "HTMLFilter.h"
+
+#include <QtCore/QXmlStreamReader>
 
 QString HTMLFilter::escapeTags(const QString &in) {
 	QString out;
@@ -22,12 +22,12 @@ QString HTMLFilter::escapeTags(const QString &in) {
 }
 
 bool HTMLFilter::filter(const QString &in, QString &out) {
-	if (! in.contains(QLatin1Char('<'))) {
+	if (!in.contains(QLatin1Char('<'))) {
 		out = in.simplified();
 	} else {
 		QXmlStreamReader qxsr(QString::fromLatin1("<document>%1</document>").arg(in));
 		QString qs;
-		while (! qxsr.atEnd()) {
+		while (!qxsr.atEnd()) {
 			switch (qxsr.readNext()) {
 				case QXmlStreamReader::Invalid:
 					return false;

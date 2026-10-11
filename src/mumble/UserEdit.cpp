@@ -1,27 +1,21 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "mumble_pch.hpp"
-
 #include "UserEdit.h"
-
-#include <QItemSelectionModel>
 
 #include "Channel.h"
 #include "ServerHandler.h"
 #include "User.h"
 #include "UserListModel.h"
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-UserEdit::UserEdit(const MumbleProto::UserList &userList, QWidget *p)
-	: QDialog(p)
-	, m_model(new UserListModel(userList, this))
-	, m_filter(new UserListFilterProxyModel(this)) {
+#include <QtCore/QItemSelectionModel>
+#include <QtWidgets/QMenu>
 
+UserEdit::UserEdit(const MumbleProto::UserList &userList, QWidget *p)
+	: QDialog(p), m_model(new UserListModel(userList, this)), m_filter(new UserListFilterProxyModel(this)) {
 	setupUi(this);
 
 	const int userCount = userList.users_size();
@@ -31,27 +25,19 @@ UserEdit::UserEdit(const MumbleProto::UserList &userList, QWidget *p)
 	qtvUserList->setModel(m_filter);
 
 	QItemSelectionModel *selectionModel = qtvUserList->selectionModel();
-	connect(selectionModel, SIGNAL(selectionChanged(QItemSelection,QItemSelection)),
-	        this, SLOT(onSelectionChanged(QItemSelection,QItemSelection)));
-	connect(selectionModel, SIGNAL(currentRowChanged(QModelIndex,QModelIndex)),
-	        this, SLOT(onCurrentRowChanged(QModelIndex,QModelIndex)));
+	connect(selectionModel, SIGNAL(selectionChanged(QItemSelection, QItemSelection)), this,
+			SLOT(onSelectionChanged(QItemSelection, QItemSelection)));
+	connect(selectionModel, SIGNAL(currentRowChanged(QModelIndex, QModelIndex)), this,
+			SLOT(onCurrentRowChanged(QModelIndex, QModelIndex)));
 
 	qtvUserList->setFocus();
 	qtvUserList->setContextMenuPolicy(Qt::CustomContextMenu);
-
-#if QT_VERSION >= 0x050000
 	qtvUserList->header()->setSectionResizeMode(UserListModel::COL_NICK, QHeaderView::Stretch);
+
 	if (!m_model->isLegacy()) {
 		qtvUserList->header()->setSectionResizeMode(UserListModel::COL_INACTIVEDAYS, QHeaderView::ResizeToContents);
 		qtvUserList->header()->setSectionResizeMode(UserListModel::COL_LASTCHANNEL, QHeaderView::Stretch);
 	}
-#else
-	qtvUserList->header()->setResizeMode(UserListModel::COL_NICK, QHeaderView::Stretch);
-	if (!m_model->isLegacy()) {
-		qtvUserList->header()->setResizeMode(UserListModel::COL_INACTIVEDAYS, QHeaderView::ResizeToContents);
-		qtvUserList->header()->setResizeMode(UserListModel::COL_LASTCHANNEL, QHeaderView::Stretch);
-	}
-#endif
 
 	if (m_model->isLegacy()) {
 		qlInactive->hide();
@@ -65,7 +51,7 @@ UserEdit::UserEdit(const MumbleProto::UserList &userList, QWidget *p)
 void UserEdit::accept() {
 	if (m_model->isUserListDirty()) {
 		MumbleProto::UserList userList = m_model->getUserListUpdate();
-		g.sh->sendMessage(userList);
+		Global::get().sh->sendMessage(userList);
 	}
 
 	QDialog::accept();
@@ -94,21 +80,19 @@ void UserEdit::on_qtvUserList_customContextMenuRequested(const QPoint &point) {
 
 	if (qtvUserList->selectionModel()->currentIndex().isValid()) {
 		QAction *renameAction = menu->addAction(tr("Rename"));
-		connect(renameAction, SIGNAL(triggered()),
-		        this, SLOT(on_qpbRename_clicked()));
+		connect(renameAction, SIGNAL(triggered()), this, SLOT(on_qpbRename_clicked()));
 
 		menu->addSeparator();
 	}
 
 	QAction *removeMenuAction = menu->addAction(tr("Remove"));
-	connect(removeMenuAction, SIGNAL(triggered()),
-	        this, SLOT(on_qpbRemove_clicked()));
+	connect(removeMenuAction, SIGNAL(triggered()), this, SLOT(on_qpbRemove_clicked()));
 
 	menu->exec(qtvUserList->mapToGlobal(point));
 	delete menu;
 }
 
-void UserEdit::onSelectionChanged(const QItemSelection& /*selected*/, const QItemSelection& /*deselected*/) {
+void UserEdit::onSelectionChanged(const QItemSelection & /*selected*/, const QItemSelection & /*deselected*/) {
 	const bool somethingSelected = !(qtvUserList->selectionModel()->selection().empty());
 	qpbRemove->setEnabled(somethingSelected);
 }
@@ -126,7 +110,7 @@ void UserEdit::on_qcbInactive_currentIndexChanged(int) {
 }
 
 void UserEdit::updateInactiveDaysFilter() {
-	const int timespanUnit = qcbInactive->currentIndex();
+	const int timespanUnit  = qcbInactive->currentIndex();
 	const int timespanCount = qsbInactive->value();
 
 	int minimumInactiveDays = 0;
@@ -152,9 +136,7 @@ void UserEdit::updateInactiveDaysFilter() {
 
 
 UserListFilterProxyModel::UserListFilterProxyModel(QObject *parent_)
-	: QSortFilterProxyModel(parent_)
-	, m_minimumInactiveDays(0) {
-
+	: QSortFilterProxyModel(parent_), m_minimumInactiveDays(0) {
 	setFilterKeyColumn(UserListModel::COL_NICK);
 	setFilterCaseSensitivity(Qt::CaseInsensitive);
 	setSortLocaleAware(true);
@@ -162,13 +144,12 @@ UserListFilterProxyModel::UserListFilterProxyModel(QObject *parent_)
 }
 
 bool UserListFilterProxyModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const {
-	if(!QSortFilterProxyModel::filterAcceptsRow(source_row, source_parent)) {
+	if (!QSortFilterProxyModel::filterAcceptsRow(source_row, source_parent)) {
 		return false;
 	}
 
-	const QModelIndex inactiveDaysIdx = sourceModel()->index(source_row,
-	                                                         UserListModel::COL_INACTIVEDAYS,
-	                                                         source_parent);
+	const QModelIndex inactiveDaysIdx =
+		sourceModel()->index(source_row, UserListModel::COL_INACTIVEDAYS, source_parent);
 
 	bool ok;
 	const int inactiveDays = inactiveDaysIdx.data().toInt(&ok);
@@ -181,12 +162,18 @@ bool UserListFilterProxyModel::filterAcceptsRow(int source_row, const QModelInde
 }
 
 void UserListFilterProxyModel::setFilterMinimumInactiveDays(int minimumInactiveDays) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 10, 0)
+	beginFilterChange();
+#endif
 	m_minimumInactiveDays = minimumInactiveDays;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 10, 0)
+	endFilterChange();
+#else
 	invalidateFilter();
+#endif
 }
 
 void UserListFilterProxyModel::removeRowsInSelection(const QItemSelection &selection) {
 	QItemSelection sourceSelection = mapSelectionToSource(selection);
-	qobject_cast<UserListModel*>(sourceModel())->removeRowsInSelection(sourceSelection);
+	qobject_cast< UserListModel * >(sourceModel())->removeRowsInSelection(sourceSelection);
 }
-

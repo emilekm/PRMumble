@@ -1,17 +1,17 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
 #include "SvgIcon.h"
 
-#include <QSvgRenderer>
 #include <QPainter>
+#include <QSvgRenderer>
 
 void SvgIcon::addSvgPixmapsToIcon(QIcon &icon, QString fn) {
 	QSvgRenderer svg(fn);
 
-	QList<QSize> commonSizes;
+	QList< QSize > commonSizes;
 	commonSizes << QSize(8, 8);
 	commonSizes << QSize(16, 16);
 	commonSizes << QSize(22, 22); // Plasma notification area size
@@ -24,7 +24,7 @@ void SvgIcon::addSvgPixmapsToIcon(QIcon &icon, QString fn) {
 	commonSizes << QSize(128, 128);
 	commonSizes << QSize(256, 256);
 
-	foreach (QSize size, commonSizes) {
+	for (const QSize &size : commonSizes) {
 		QPixmap pm(size);
 		pm.fill(Qt::transparent);
 
@@ -32,7 +32,6 @@ void SvgIcon::addSvgPixmapsToIcon(QIcon &icon, QString fn) {
 		p.setRenderHint(QPainter::Antialiasing);
 		p.setRenderHint(QPainter::TextAntialiasing);
 		p.setRenderHint(QPainter::SmoothPixmapTransform);
-		p.setRenderHint(QPainter::HighQualityAntialiasing);
 		svg.render(&p);
 
 		icon.addPixmap(pm);

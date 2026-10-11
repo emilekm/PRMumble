@@ -1,4 +1,4 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
@@ -6,35 +6,53 @@
 #ifndef MUMBLE_MURMUR_META_H_
 #define MUMBLE_MURMUR_META_H_
 
+#include "DBState.h"
+#include "DBWrapper.h"
+#include "Timer.h"
+#include "Version.h"
+
+#include "database/ConnectionParameter.h"
+
+#ifdef Q_OS_WIN
+#	include "win.h"
+#endif
+
 #include <QtCore/QDir>
 #include <QtCore/QList>
+#include <QtCore/QRegularExpression>
 #include <QtCore/QUrl>
 #include <QtCore/QVariant>
 #include <QtNetwork/QHostAddress>
 #include <QtNetwork/QSslCertificate>
-#include <QtNetwork/QSslKey>
 #include <QtNetwork/QSslCipher>
-#ifdef Q_OS_WIN
-#include <windows.h>
-#endif
+#include <QtNetwork/QSslKey>
 
-#include "Timer.h"
+#include <chrono>
+#include <memory>
+#include <optional>
 
 class Server;
 class QSettings;
 
 class MetaParams {
 public:
+	/// This is the path to the directory in which the loaded server ini file is located
 	QDir qdBasePath;
 
-	QList<QHostAddress> qlBind;
+	QList< QHostAddress > qlBind;
 	unsigned short usPort;
 	int iTimeout;
+	/// Maximum time a connection may remain without having authenticated before
+	/// it is dropped. A value <= 0 disables this timeout.
+	std::chrono::seconds handshakeTimeout;
 	int iMaxBandwidth;
-	int iMaxUsers;
-	int iMaxUsersPerChannel;
-	int iDefaultChan;
+	unsigned int iMaxUsers;
+	unsigned int iMaxUsersPerChannel;
+	int iMaxListenersPerChannel;
+	int iMaxListenerProxiesPerUser;
+	unsigned int iDefaultChan;
 	bool bRememberChan;
+	int iRememberChanDuration;
 	int iMaxTextMessageLength;
 	int iMaxImageMessageLength;
 	int iOpusThreshold;
@@ -50,12 +68,14 @@ public:
 	bool bAllowHTML;
 	QString qsPassword;
 	QString qsWelcomeText;
+	QString qsWelcomeTextFile;
 	bool bCertRequired;
 	bool bForceExternalAuth;
 
 	int iBanTries;
 	int iBanTimeframe;
 	int iBanTime;
+	bool bBanSuccessful;
 
 	QString qsDatabase;
 	int iSQLiteWAL;
@@ -73,16 +93,11 @@ public:
 	bool bSendVersion;
 	bool bAllowPing;
 
-	QString qsDBus;
-	QString qsDBusService;
 	QString qsLogfile;
+	QString logSys;
 	QString qsPid;
 	QString qsIceEndpoint;
 	QString qsIceSecretRead, qsIceSecretWrite;
-
-	QString qsGRPCAddress;
-	QString qsGRPCCert;
-	QString qsGRPCKey;
 
 	QString qsRegName;
 	QString qsRegPassword;
@@ -91,11 +106,16 @@ public:
 	QUrl qurlRegWeb;
 	bool bBonjour;
 
-	QRegExp qrUserName;
-	QRegExp qrChannelName;
+	QString userNamePattern;
+	QString channelNamePattern;
 
 	unsigned int iMessageLimit;
 	unsigned int iMessageBurst;
+
+	unsigned int iPluginMessageLimit;
+	unsigned int iPluginMessageBurst;
+
+	bool broadcastListenerVolumeAdjustments;
 
 	QSslCertificate qscCert;
 	QSslKey qskKey;
@@ -108,22 +128,22 @@ public:
 	/// Simply put: it contains any certificates
 	/// that aren't the main certificate, or "leaf"
 	/// certificate.
-	QList<QSslCertificate> qlIntermediates;
+	QList< QSslCertificate > qlIntermediates;
 
 	/// qlCA contains all certificates read from
 	/// the PEM bundle pointed to by murmur.ini's
 	/// sslCA option.
-	QList<QSslCertificate> qlCA;
+	QList< QSslCertificate > qlCA;
 
 	/// qlCiphers contains the list of supported
 	/// cipher suites.
-	QList<QSslCipher> qlCiphers;
+	QList< QSslCipher > qlCiphers;
 
 	QByteArray qbaDHParams;
 	QByteArray qbaPassPhrase;
 	QString qsCiphers;
 
-	QMap<QString, QString> qmConfig;
+	QMap< QString, QString > qmConfig;
 
 #ifdef Q_OS_UNIX
 	unsigned int uiUid, uiGid;
@@ -131,9 +151,20 @@ public:
 	QString qsName;
 #endif
 
-	QVariant qvSuggestVersion;
-	QVariant qvSuggestPositional;
-	QVariant qvSuggestPushToTalk;
+	Version::full_t m_suggestVersion;
+	std::optional< bool > suggestPositional;
+	std::optional< bool > suggestPushToTalk;
+
+	/// A flag indicating whether changes in groups should be logged
+	bool bLogGroupChanges;
+	/// A flag indicating whether changes in ACLs should be logged
+	bool bLogACLChanges;
+
+	/// A flag indicating whether recording is allowed on this server
+	bool allowRecording;
+
+	/// The number of seconds to keep rolling stats for per client
+	unsigned int rollingStatsWindow;
 
 	/// qsAbsSettingsFilePath is the absolute path to
 	/// the murmur.ini used by this Meta instance.
@@ -151,46 +182,60 @@ public:
 	bool loadSSLSettings();
 
 private:
-	template <class T>
-	T typeCheckedFromSettings(const QString &name, const T &variable, QSettings *settings = NULL);
+	template< class ValueType, class ReturnType = ValueType >
+	ReturnType typeCheckedFromSettings(const QString &name, const ValueType &variable, QSettings *settings = nullptr);
 };
 
 class Meta : public QObject {
-	private:
-		Q_OBJECT;
-		Q_DISABLE_COPY(Meta);
-	public:
-		static MetaParams mp;
-		QHash<int, Server *> qhServers;
-		QHash<QHostAddress, QList<Timer> > qhAttempts;
-		QHash<QHostAddress, Timer> qhBans;
-		QString qsOS, qsOSVersion;
-		Timer tUptime;
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(Meta)
+
+public:
+	static std::unique_ptr< MetaParams > mp;
+	QHash< unsigned int, Server * > qhServers;
+	QHash< QHostAddress, QList< Timer > > qhAttempts;
+	QHash< QHostAddress, Timer > qhBans;
+	QString qsOS, qsOSVersion;
+	Timer tUptime;
+
+	DBWrapper dbWrapper;
+
+	DBState assumedDBState = DBState::Normal;
 
 #ifdef Q_OS_WIN
-		static HANDLE hQoS;
+	static HANDLE hQoS;
 #endif
 
-		Meta();
-		~Meta();
+	Meta(const ::mumble::db::ConnectionParameter &connectParam);
+	~Meta();
 
-		/// reloadSSLSettings reloads Murmur's MetaParams's
-		/// SSL settings, and updates the certificate and
-		/// private key for all virtual servers that use the
-		/// Meta server's certificate and private key.
-		bool reloadSSLSettings();
+	static const ::mumble::db::ConnectionParameter &getConnectionParameter();
 
-		void bootAll();
-		bool boot(int);
-		bool banCheck(const QHostAddress &);
-		void kill(int);
-		void killAll();
-		void getOSInfo();
-		void connectListener(QObject *);
-		static void getVersion(int &major, int &minor, int &patch, QString &string);
-	signals:
-		void started(Server *);
-		void stopped(Server *);
+	/// reloadSSLSettings reloads Murmur's MetaParams's
+	/// SSL settings, and updates the certificate and
+	/// private key for all virtual servers that use the
+	/// Meta server's certificate and private key.
+	bool reloadSSLSettings();
+
+	void initPBKDF2IterationCount();
+
+	void bootAll(const ::mumble::db::ConnectionParameter &connectionParam, bool createDefaultInstance);
+	bool boot(const ::mumble::db::ConnectionParameter &connectionParam, unsigned int);
+	bool banCheck(const QHostAddress &);
+
+	/// Called whenever we get a successful connection from a client.
+	/// Used to reset autoban tracking for the address.
+	void successfulConnectionFrom(const QHostAddress &);
+	void kill(unsigned int);
+	void killAll();
+	void getOSInfo();
+	void connectListener(QObject *);
+	static void getVersion(Version::component_t &major, Version::component_t &minor, Version::component_t &patch,
+						   QString &string);
+signals:
+	void started(Server *);
+	void stopped(Server *);
 };
 
 extern Meta *meta;

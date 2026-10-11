@@ -1,4 +1,4 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
@@ -14,13 +14,13 @@
 /// address consisting of a HostAddress
 /// and a port.
 struct ServerAddress {
-	HostAddress host;
-	unsigned short port;
+	HostAddress host    = {};
+	unsigned short port = 0;
 
 	/// Construct a default ServerAddress.
 	/// The default ServerAddress value is considered
 	/// invalid per the |isValid| method.
-	ServerAddress();
+	ServerAddress() = default;
 
 	/// Construct a ServerAddress pointing to |host_| and |port_|.
 	ServerAddress(HostAddress host_, unsigned short port_);
@@ -43,6 +43,6 @@ bool operator<(const ServerAddress &lhs, const ServerAddress &rhs);
 
 /// Implementation of qHash for ServerAddress, such that ServerAddress
 /// can be used as a key in QHash, QMap, etc.
-uint qHash(const ServerAddress &key);
+std::size_t qHash(const ServerAddress &key);
 
 #endif

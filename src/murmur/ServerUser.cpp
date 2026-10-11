@@ -1,17 +1,28 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "murmur_pch.h"
-
-#include "Server.h"
 #include "ServerUser.h"
-#include "Meta.h"
 
-ServerUser::ServerUser(Server *p, QSslSocket *socket) : Connection(p, socket), User(), s(NULL), leakyBucket(p->iMessageLimit, p->iMessageBurst) {
-	sState = ServerUser::Connected;
-	sUdpSocket = INVALID_SOCKET;
+#include "ClientType.h"
+#include "Meta.h"
+#include "Server.h"
+
+#ifdef Q_OS_UNIX
+#	include "Utils.h"
+#endif
+
+#include "crypto/CryptStateOCB2.h"
+
+#include <chrono>
+
+ServerUser::ServerUser(Server *p, QSslSocket *socket)
+	: Connection(p, socket), ServerUserInfo(), s(nullptr), leakyBucket(p->iMessageLimit, p->iMessageBurst),
+	  m_pluginMessageBucket(p->iPluginMessageLimit, p->iPluginMessageBurst) {
+	sState       = ServerUser::Connected;
+	m_clientType = ClientType::REGULAR;
+	sUdpSocket   = INVALID_SOCKET;
 
 	memset(&saiUdpAddress, 0, sizeof(saiUdpAddress));
 	memset(&saiTcpLocalAddress, 0, sizeof(saiTcpLocalAddress));
@@ -20,40 +31,71 @@ ServerUser::ServerUser(Server *p, QSslSocket *socket) : Connection(p, socket), U
 	dTCPPingAvg = dTCPPingVar = 0.0f;
 	uiUDPPackets = uiTCPPackets = 0;
 
-	aiUdpFlag = 1;
-	uiVersion = 0;
-	bVerified = true;
+	aiUdpFlag            = 1;
+	m_version            = Version::UNKNOWN;
+	bVerified            = true;
 	iLastPermissionCheck = -1;
-	
+
 	bOpus = false;
+
+	csCrypt = std::make_unique< CryptStateOCB2 >();
 }
 
+ServerUser::~ServerUser() {
+}
 
 ServerUser::operator QString() const {
 	return QString::fromLatin1("%1:%2(%3)").arg(qsName).arg(uiSession).arg(iId);
 }
+
+std::int64_t ServerUser::activityTime() const {
+	const auto elapsed = m_lastActivityTimer.elapsed< std::chrono::milliseconds >();
+	return elapsed.count();
+}
+
+void ServerUser::resetActivityTime() {
+	m_lastActivityTimer.restart();
+}
+
+void ServerUser::sendMessage(const ::google::protobuf::Message &msg, const Mumble::Protocol::TCPMessageType msgType) {
+	QByteArray cache;
+	sendMessage(msg, msgType, cache);
+}
+
+void ServerUser::sendMessage(const ::google::protobuf::Message &msg, Mumble::Protocol::TCPMessageType msgType,
+							 QByteArray &cache) {
+	if (cache.isEmpty()) {
+		if (!Connection::messageToNetwork(msg, msgType, cache)) {
+			warn("Connection::messageToNetwork() failed");
+			return;
+		};
+	}
+
+	Connection::sendMessage(cache);
+}
+
 BandwidthRecord::BandwidthRecord() {
 	iRecNum = 0;
-	iSum = 0;
-	for (int i=0;i<N_BANDWIDTH_SLOTS;i++)
+	iSum    = 0;
+	for (int i = 0; i < N_BANDWIDTH_SLOTS; i++)
 		a_iBW[i] = 0;
 }
 
 bool BandwidthRecord::addFrame(int size, int maxpersec) {
 	QMutexLocker ml(&qmMutex);
 
-	quint64 elapsed = a_qtWhen[iRecNum].elapsed();
+	long elapsed = a_qtWhen[iRecNum].elapsed().count();
 
 	if (elapsed == 0)
 		return false;
 
-	int nsum = iSum-a_iBW[iRecNum]+size;
-	int bw = static_cast<int>((nsum * 1000000LL) / elapsed);
+	int nsum = iSum - a_iBW[iRecNum] + size;
+	int bw   = static_cast< int >((static_cast< long >(nsum) * 1000000L) / elapsed);
 
 	if (bw > maxpersec)
 		return false;
 
-	a_iBW[iRecNum] = static_cast<unsigned short>(size);
+	a_iBW[iRecNum] = static_cast< unsigned short >(size);
 	a_qtWhen[iRecNum].restart();
 
 	iSum = nsum;
@@ -68,17 +110,17 @@ bool BandwidthRecord::addFrame(int size, int maxpersec) {
 int BandwidthRecord::onlineSeconds() const {
 	QMutexLocker ml(&qmMutex);
 
-	return static_cast<int>(tFirst.elapsed() / 1000000LL);
+	return static_cast< int >(tFirst.elapsed< std::chrono::seconds >().count());
 }
 
 int BandwidthRecord::idleSeconds() const {
 	QMutexLocker ml(&qmMutex);
 
-	quint64 iIdle = a_qtWhen[(iRecNum + N_BANDWIDTH_SLOTS - 1) % N_BANDWIDTH_SLOTS].elapsed();
+	std::chrono::microseconds iIdle = a_qtWhen[(iRecNum + N_BANDWIDTH_SLOTS - 1) % N_BANDWIDTH_SLOTS].elapsed();
 	if (tIdleControl.elapsed() < iIdle)
 		iIdle = tIdleControl.elapsed();
 
-	return static_cast<int>(iIdle / 1000000LL);
+	return static_cast< int >(std::chrono::duration_cast< std::chrono::seconds >(iIdle).count());
 }
 
 void BandwidthRecord::resetIdleSeconds() {
@@ -91,64 +133,102 @@ int BandwidthRecord::bandwidth() const {
 	QMutexLocker ml(&qmMutex);
 
 	int sum = 0;
-	int records = 0;
-	quint64 elapsed = 0ULL;
+	std::chrono::microseconds elapsed{ 0 };
 
-	for (int i=1;i<N_BANDWIDTH_SLOTS;++i) {
-		int idx = (iRecNum + N_BANDWIDTH_SLOTS - i) % N_BANDWIDTH_SLOTS;
-		quint64 e = a_qtWhen[idx].elapsed();
-		if (e > 1000000ULL) {
+	for (int i = 1; i < N_BANDWIDTH_SLOTS; ++i) {
+		int idx                     = (iRecNum + N_BANDWIDTH_SLOTS - i) % N_BANDWIDTH_SLOTS;
+		std::chrono::microseconds e = a_qtWhen[idx].elapsed();
+		if (e > std::chrono::seconds(1)) {
 			break;
 		} else {
-			++records;
 			sum += a_iBW[idx];
 			elapsed = e;
 		}
 	}
 
-	if (elapsed < 250000ULL)
+	if (elapsed < std::chrono::milliseconds(250))
 		return 0;
 
-	return static_cast<int>((sum * 1000000ULL) / elapsed);
+	return static_cast< int >((static_cast< long long >(sum) * 1000000LL) / elapsed.count());
 }
 
-inline static QTime now() {
-	return QTime::currentTime();
-}
+LeakyBucket::LeakyBucket(unsigned int tokensPerSec, unsigned int maxTokens)
+	: m_tokensPerSec(tokensPerSec), m_maxTokens(maxTokens), m_currentTokens(0), m_timer() {
+	m_timer.start();
 
-inline static int millisecondsBetween(const QTime &start, const QTime &end) {
-	return start.msecsTo(end);
-}
-
-// Rate limiting: burst up to 5, 1 message per sec limit over longer time
-LeakyBucket::LeakyBucket(unsigned int tokensPerSec, unsigned int maxTokens) : tokensPerSec(tokensPerSec), maxTokens(maxTokens), currentTokens(0) {
-	lastUpdate = now();
+	if (!QElapsedTimer::isMonotonic()) {
+		qFatal("Non-monotonic clocks are not reliable enough and lead to issues as "
+			   "https://github.com/mumble-voip/mumble/issues/3985. "
+			   "This is a serious issue and should be reported!");
+	}
 }
 
 bool LeakyBucket::ratelimit(int tokens) {
 	// First remove tokens we leaked over time
-	const QTime tnow = now();
-	const long ms = millisecondsBetween(lastUpdate, tnow);
+	const qint64 elapsedMillis = m_timer.elapsed();
 
-	const long drainTokens = (ms * tokensPerSec) / 1000;
+	if (elapsedMillis < 0) {
+		if (m_timer.isValid()) {
+			// By definition of a monotinic clock, this shouldn't be possible to happen.
+			// Thus if it does happen there's something going very wrong which is why we
+			// emit the qFatal which at the state this line here was added, will crash
+			// the server. But at least that guarantees to give us a report on the crash
+			// instead of obscure reports about the rate limiter causing all sorts of
+			// weird issues.
+			qFatal("ServerUser.cpp: Monotonic timer returned negative elapsed time!");
 
-	// Prevent constant starvation due to too many updates
-	if (drainTokens > 0) {
-		this->lastUpdate = tnow;
-
-		this->currentTokens -= drainTokens;
-		if (this->currentTokens < 0) {
-			this->currentTokens = 0;
+			// In case the implementation changes and qFatal no longer crashes the server,
+			// we'll restart the timer but limit the message.
+			m_timer.restart();
+			return true;
+		} else {
+			// For some reason the timer is in an invalid state. This shouldn't happen
+			// as we start it in the constructor, but in case it does, we log the error
+			// and reset the timer and the tokens as a fail-safe. We also won't limit
+			// in this case as a potential limit is based on an invalid timer. That's
+			// not what we want.
+			qCritical("ServerUser.cpp: Monotonic timer is invalid!");
+			m_timer.restart();
+			m_currentTokens = 0;
+			return false;
 		}
 	}
 
-	// Then try to add tokens
-	bool limit = this->currentTokens > ((static_cast<long>(maxTokens)) - tokens);
+	const qint64 drainTokens = (elapsedMillis * m_tokensPerSec) / 1000;
+
+	// Only restart the timer if enough time has elapsed so whe drain at least
+	// a single token. If we were to restart the timer every time, even if the
+	// interval between the calls to this function is so small that we don't
+	// drain a token, we can end up in a situation in which we will never drain
+	// a token even if let's say by the time this function is called the second
+	// time we would have to drain a single token (over the course of both function
+	// calls, but each function call individually wouldn't drain a token).
+	if (drainTokens > 0) {
+		m_timer.restart();
+	}
+
+	// Make sure that m_currentTokens never gets less than 0 by draining
+	if (static_cast< qint64 >(m_currentTokens) < drainTokens) {
+		m_currentTokens = 0;
+	} else {
+		m_currentTokens -= static_cast< decltype(m_currentTokens) >(drainTokens);
+	}
+
+	// Now that the tokens have been updated to reflect the constant drain caused by
+	// the imaginary leaking bucket, we can check whether the given amount of tokens
+	// still fit in this imaginary bucket (and thus the corresponding message may pass)
+	// or if it doesn't (and thus the message will be limited (rejected))
+	bool limit = m_currentTokens > ((static_cast< long >(m_maxTokens)) - tokens);
 
 	// If the bucket is not overflowed, allow message and add tokens
 	if (!limit) {
-		this->currentTokens += tokens;
+		m_currentTokens += static_cast< decltype(m_currentTokens) >(tokens);
 	}
 
 	return limit;
+}
+
+void ServerUser::rejectConnection(bool forceDisconnect) {
+	sState = ServerUser::Rejected;
+	disconnectSocket(forceDisconnect);
 }

@@ -1,4 +1,4 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
@@ -16,14 +16,14 @@
 /// function.
 /// Test that it works for us.
 class TestStdAbs : public QObject {
-		Q_OBJECT
-	private slots:
-		void floatWorks();
+	Q_OBJECT
+private slots:
+	void floatWorks();
 };
 
 void TestStdAbs::floatWorks() {
 	const float in = -1.5;
-	float out = std::abs(in);
+	float out      = std::abs(in);
 	QVERIFY(out > 1.2 && out < 1.8);
 }
 

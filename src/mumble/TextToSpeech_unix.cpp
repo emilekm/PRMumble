@@ -1,50 +1,49 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "mumble_pch.hpp"
-
 #include "TextToSpeech.h"
+#include "Global.h"
 
 #ifdef USE_SPEECHD
-# ifdef USE_SPEECHD_PKGCONFIG
-#  include <speech-dispatcher/libspeechd.h>
-# else
-#  include <libspeechd.h>
-# endif
+#	ifdef USE_SPEECHD_PKGCONFIG
+#		include <speech-dispatcher/libspeechd.h>
+#	else
+#		include <libspeechd.h>
+#	endif
 #endif
 
-#include "Global.h"
+#include <QtCore/QLocale>
 
 class TextToSpeechPrivate {
 #ifdef USE_SPEECHD
-	protected:
-		SPDConnection *spd;
-		/// Used to store the requested volume of the TextToSpeech object
-		/// before speech-dispatcher has been initialized.
-		int volume;
-		bool initialized;
-		void ensureInitialized();
+protected:
+	SPDConnection *spd;
+	/// Used to store the requested volume of the TextToSpeech object
+	/// before speech-dispatcher has been initialized.
+	int volume;
+	bool initialized;
+	void ensureInitialized();
 #endif
-	public:
-		TextToSpeechPrivate();
-		~TextToSpeechPrivate();
-		void say(const QString &text);
-		void setVolume(int v);
+public:
+	TextToSpeechPrivate();
+	~TextToSpeechPrivate();
+	void say(const QString &text);
+	void setVolume(int v);
 };
 
 #ifdef USE_SPEECHD
 TextToSpeechPrivate::TextToSpeechPrivate() {
 	initialized = false;
-	volume = -1;
-	spd = NULL;
+	volume      = -1;
+	spd         = nullptr;
 }
 
 TextToSpeechPrivate::~TextToSpeechPrivate() {
 	if (spd) {
 		spd_close(spd);
-		spd = NULL;
+		spd = nullptr;
 	}
 }
 
@@ -53,15 +52,15 @@ void TextToSpeechPrivate::ensureInitialized() {
 		return;
 	}
 
-	spd = spd_open("Mumble", NULL, NULL, SPD_MODE_THREADED);
-	if (! spd) {
+	spd = spd_open("Mumble", nullptr, nullptr, SPD_MODE_THREADED);
+	if (!spd) {
 		qWarning("TextToSpeech: Failed to contact speech dispatcher.");
 	} else {
 		QString lang;
-		if (!g.s.qsTTSLanguage.isEmpty()) {
-			lang = g.s.qsTTSLanguage;
-		} else if (!g.s.qsLanguage.isEmpty()) {
-			QLocale locale(g.s.qsLanguage);
+		if (!Global::get().s.qsTTSLanguage.isEmpty()) {
+			lang = Global::get().s.qsTTSLanguage;
+		} else if (!Global::get().s.qsLanguage.isEmpty()) {
+			QLocale locale(Global::get().s.qsLanguage);
 			lang = locale.bcp47Name();
 		} else {
 			QLocale systemLocale;
@@ -120,7 +119,7 @@ void TextToSpeechPrivate::setVolume(int) {
 
 TextToSpeech::TextToSpeech(QObject *p) : QObject(p) {
 	enabled = true;
-	d = new TextToSpeechPrivate();
+	d       = new TextToSpeechPrivate();
 }
 
 TextToSpeech::~TextToSpeech() {

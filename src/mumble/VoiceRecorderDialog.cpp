@@ -1,54 +1,63 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "mumble_pch.hpp"
-
 #include "VoiceRecorderDialog.h"
 
 #include "AudioOutput.h"
+#include "Log.h"
 #include "ServerHandler.h"
 #include "VoiceRecorder.h"
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
+
+#include <QtGui/QCloseEvent>
+#include <QtWidgets/QFileDialog>
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QStyledItemDelegate>
 
 VoiceRecorderDialog::VoiceRecorderDialog(QWidget *p) : QDialog(p), qtTimer(new QTimer(this)) {
 	qtTimer->setObjectName(QLatin1String("qtTimer"));
 	qtTimer->setInterval(200);
 	setupUi(this);
 
-	qleTargetDirectory->setText(g.s.qsRecordingPath);
-	qleFilename->setText(g.s.qsRecordingFile);
-	qrbDownmix->setChecked(g.s.rmRecordingMode == Settings::RecordingMixdown);
-	qrbMultichannel->setChecked(g.s.rmRecordingMode == Settings::RecordingMultichannel);
+	qleTargetDirectory->setText(Global::get().s.qsRecordingPath);
+	qleFilename->setText(Global::get().s.qsRecordingFile);
 
-	QString qsTooltip = QString::fromLatin1(
-	                        "%1"
-	                        "<table>"
-	                        "  <tr>"
-	                        "    <td width=\"25%\">%user</td>"
-	                        "    <td>%2</td>"
-	                        "  </tr>"
-	                        "  <tr>"
-	                        "    <td>%date</td>"
-	                        "    <td>%3</td>"
-	                        "  </tr>"
-	                        "  <tr>"
-	                        "    <td>%time</td>"
-	                        "    <td>%4</td>"
-	                        "  </tr>"
-	                        "  <tr>"
-	                        "    <td>%host</td>"
-	                        "    <td>%5</td>"
-	                        "  </tr>"
-	                        "</table>").
-	                    arg(tr("Valid variables are:")).
-	                    arg(tr("Inserts the user's name")).
-	                    arg(tr("Inserts the current date")).
-	                    arg(tr("Inserts the current time")).
-	                    arg(tr("Inserts the hostname"));
+	guardTransportRecording();
+
+	qrbDownmix->setChecked(Global::get().s.rmRecordingMode == Settings::RecordingMixdown);
+	qrbMultichannel->setChecked(Global::get().s.rmRecordingMode == Settings::RecordingMultichannel);
+	qrbMultichannelAndTransport->setChecked(Global::get().s.rmRecordingMode
+											== Settings::RecordingMultichannelAndTransport);
+	qrbTransportStandalone->setChecked(Global::get().s.rmRecordingMode == Settings::RecordingTransportStandalone);
+
+	qgbOutput->setDisabled(qrbTransportStandalone->isChecked());
+
+	QString qsTooltip = QString::fromLatin1("%1"
+											"<table>"
+											"  <tr>"
+											"    <td width=\"25%\">%user</td>"
+											"    <td>%2</td>"
+											"  </tr>"
+											"  <tr>"
+											"    <td>%date</td>"
+											"    <td>%3</td>"
+											"  </tr>"
+											"  <tr>"
+											"    <td>%time</td>"
+											"    <td>%4</td>"
+											"  </tr>"
+											"  <tr>"
+											"    <td>%host</td>"
+											"    <td>%5</td>"
+											"  </tr>"
+											"</table>")
+							.arg(tr("Valid variables are:"))
+							.arg(tr("Inserts the user's name"))
+							.arg(tr("Inserts the current date"))
+							.arg(tr("Inserts the current time"))
+							.arg(tr("Inserts the hostname"));
 
 	qleTargetDirectory->setToolTip(qsTooltip);
 	qleFilename->setToolTip(qsTooltip);
@@ -56,31 +65,40 @@ VoiceRecorderDialog::VoiceRecorderDialog(QWidget *p) : QDialog(p), qtTimer(new Q
 	// Populate available codecs
 	Q_ASSERT(VoiceRecorderFormat::kEnd != 0);
 	for (int fm = 0; fm < VoiceRecorderFormat::kEnd; fm++) {
-		qcbFormat->addItem(VoiceRecorderFormat::getFormatDescription(static_cast<VoiceRecorderFormat::Format>(fm)));
+		qcbFormat->addItem(VoiceRecorderFormat::getFormatDescription(static_cast< VoiceRecorderFormat::Format >(fm)));
 	}
 
-	if (g.s.iRecordingFormat < 0 || g.s.iRecordingFormat > VoiceRecorderFormat::kEnd)
-		g.s.iRecordingFormat = 0;
+	if (Global::get().s.iRecordingFormat < 0 || Global::get().s.iRecordingFormat > VoiceRecorderFormat::kEnd)
+		Global::get().s.iRecordingFormat = 0;
 
-	qcbFormat->setCurrentIndex(g.s.iRecordingFormat);
-	
-	QStyledItemDelegate* itemDelegate1 = new QStyledItemDelegate();
-	qcbFormat->setItemDelegate(itemDelegate1);
+	qcbFormat->setCurrentIndex(Global::get().s.iRecordingFormat);
+	qcbFormat->setItemDelegate(new QStyledItemDelegate(qcbFormat));
 }
 
 VoiceRecorderDialog::~VoiceRecorderDialog() {
 	reset();
 }
 
+void VoiceRecorderDialog::guardTransportRecording() {
+	bool aoSupportsTransport = Global::get().ao->supportsTransportRecording();
+	if (aoSupportsTransport) {
+		qrbMultichannelAndTransport->setEnabled(true);
+		qrbTransportStandalone->setEnabled(true);
+	} else {
+		qrbMultichannelAndTransport->setDisabled(true);
+		qrbTransportStandalone->setDisabled(true);
+		Global::get().s.rmRecordingMode = Settings::RecordingMixdown;
+	}
+}
+
 void VoiceRecorderDialog::closeEvent(QCloseEvent *evt) {
-	if (g.sh) {
-		VoiceRecorderPtr recorder(g.sh->recorder);
+	if (Global::get().sh) {
+		VoiceRecorderPtr recorder(Global::get().sh->recorder);
 		if (recorder && recorder->isRunning()) {
-			int ret = QMessageBox::warning(this,
-			                               tr("Recorder still running"),
-			                               tr("Closing the recorder without stopping it will discard unwritten audio. Do you really want to close the recorder?"),
-			                               QMessageBox::Yes | QMessageBox::No,
-			                               QMessageBox::No);
+			int ret = QMessageBox::warning(this, tr("Recorder still running"),
+										   tr("Closing the recorder without stopping it will discard unwritten audio. "
+											  "Do you really want to close the recorder?"),
+										   QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
 
 			if (ret == QMessageBox::No) {
 				evt->ignore();
@@ -91,15 +109,19 @@ void VoiceRecorderDialog::closeEvent(QCloseEvent *evt) {
 		}
 	}
 
-	g.s.qsRecordingPath = qleTargetDirectory->text();
-	g.s.qsRecordingFile = qleFilename->text();
+	Global::get().s.qsRecordingPath = qleTargetDirectory->text();
+	Global::get().s.qsRecordingFile = qleFilename->text();
 	if (qrbDownmix->isChecked())
-		g.s.rmRecordingMode = Settings::RecordingMixdown;
-	else
-		g.s.rmRecordingMode = Settings::RecordingMultichannel;
+		Global::get().s.rmRecordingMode = Settings::RecordingMixdown;
+	else if (qrbMultichannel->isChecked())
+		Global::get().s.rmRecordingMode = Settings::RecordingMultichannel;
+	else if (qrbMultichannelAndTransport->isChecked())
+		Global::get().s.rmRecordingMode = Settings::RecordingMultichannelAndTransport;
+	else if (qrbTransportStandalone->isChecked())
+		Global::get().s.rmRecordingMode = Settings::RecordingTransportStandalone;
 
-	int i = qcbFormat->currentIndex();
-	g.s.iRecordingFormat = (i == -1) ? 0 : i;
+	int i                            = qcbFormat->currentIndex();
+	Global::get().s.iRecordingFormat = (i == -1) ? 0 : i;
 
 	reset();
 	evt->accept();
@@ -107,38 +129,47 @@ void VoiceRecorderDialog::closeEvent(QCloseEvent *evt) {
 	QDialog::closeEvent(evt);
 }
 
+void VoiceRecorderDialog::on_qrbDownmix_clicked() {
+	qgbOutput->setEnabled(true);
+}
+
+void VoiceRecorderDialog::on_qrbMultichannel_clicked() {
+	qgbOutput->setEnabled(true);
+}
+
+void VoiceRecorderDialog::on_qrbMultichannelAndTransport_clicked() {
+	qgbOutput->setEnabled(true);
+}
+
+void VoiceRecorderDialog::on_qrbTransportStandalone_clicked() {
+	qgbOutput->setDisabled(true);
+}
+
 void VoiceRecorderDialog::on_qpbStart_clicked() {
-	if (!g.uiSession || !g.sh) {
-		QMessageBox::critical(this,
-		                      tr("Recorder"),
-		                      tr("Unable to start recording. Not connected to a server."));
+	if (!Global::get().uiSession || !Global::get().sh) {
+		QMessageBox::critical(this, tr("Recorder"), tr("Unable to start recording. Not connected to a server."));
 		reset();
 		return;
 	}
 
-	if (g.sh->uiVersion < 0x010000) {
-		QMessageBox::critical(this,
-		                      tr("Recorder"),
-		                      tr("The server you are currently connected to is version 1.2.2 or older. "
-		                         "For privacy reasons, recording on servers of versions older than 1.2.3 "
-		                         "is not possible.\nPlease contact your server administrator for further "
-		                         "information."));
+	if (Global::get().sh->m_version < Version::fromComponents(1, 0, 0)) {
+		QMessageBox::critical(this, tr("Recorder"),
+							  tr("The server you are currently connected to is version 1.2.2 or older. "
+								 "For privacy reasons, recording on servers of versions older than 1.2.3 "
+								 "is not possible.\nPlease contact your server administrator for further "
+								 "information."));
 		return;
 	}
 
-	if (g.sh->recorder) {
-		QMessageBox::information(this,
-		                         tr("Recorder"),
-		                         tr("There is already a recorder active for this server."));
+	if (Global::get().sh->recorder) {
+		QMessageBox::information(this, tr("Recorder"), tr("There is already a recorder active for this server."));
 		return;
 	}
 
 	// Check validity of input
 	int ifm = qcbFormat->currentIndex();
 	if (ifm == -1) {
-		QMessageBox::critical(this,
-		                      tr("Recorder"),
-		                      tr("Please select a recording format."));
+		QMessageBox::critical(this, tr("Recorder"), tr("Please select a recording format."));
 		return;
 	}
 
@@ -155,7 +186,7 @@ void VoiceRecorderDialog::on_qpbStart_clicked() {
 	QString basename(fi.baseName());
 	QString suffix(fi.completeSuffix());
 	if (suffix.isEmpty())
-		suffix = VoiceRecorderFormat::getFormatDefaultExtension(static_cast<VoiceRecorderFormat::Format>(ifm));
+		suffix = VoiceRecorderFormat::getFormatDefaultExtension(static_cast< VoiceRecorderFormat::Format >(ifm));
 
 
 	if (basename.isEmpty()) {
@@ -164,21 +195,33 @@ void VoiceRecorderDialog::on_qpbStart_clicked() {
 
 	qleFilename->setText(basename);
 
-	AudioOutputPtr ao(g.ao);
+	AudioOutputPtr ao(Global::get().ao);
 	if (!ao)
 		return;
 
-	g.sh->announceRecordingState(true);
-
 	// Create the recorder
 	VoiceRecorder::Config config;
-	config.sampleRate = ao->getMixerFreq();
-	config.fileName = dir.absoluteFilePath(basename + QLatin1Char('.') + suffix);
-	config.mixDownMode = qrbDownmix->isChecked();
-	config.recordingFormat = static_cast<VoiceRecorderFormat::Format>(ifm);
+	config.sampleRate      = static_cast< int >(ao->getMixerFreq());
+	config.fileName        = dir.absoluteFilePath(basename + QLatin1Char('.') + suffix);
+	config.mixDownMode     = qrbDownmix->isChecked() || qrbTransportStandalone->isChecked();
+	config.transportEnable = qrbMultichannelAndTransport->isChecked() || qrbTransportStandalone->isChecked();
+	config.recordingFormat = static_cast< VoiceRecorderFormat::Format >(ifm);
 
-	g.sh->recorder.reset(new VoiceRecorder(this, config));
-	VoiceRecorderPtr recorder(g.sh->recorder);
+	if (config.sampleRate == 0) {
+		// If we don't catch this here, Mumble will crash because VoiceRecorder expects the sample rate to be non-zero
+		Global::get().l->log(Log::Warning,
+							 tr("Unable to start recording - the audio output is miconfigured (0Hz sample rate)"));
+
+		// Close this dialog
+		reject();
+
+		return;
+	}
+
+	Global::get().sh->announceRecordingState(true);
+
+	Global::get().sh->recorder.reset(new VoiceRecorder(this, config));
+	VoiceRecorderPtr recorder(Global::get().sh->recorder);
 
 	// Wire it up
 	connect(&*recorder, SIGNAL(recording_started()), this, SLOT(onRecorderStarted()));
@@ -189,17 +232,18 @@ void VoiceRecorderDialog::on_qpbStart_clicked() {
 
 	qpbStart->setDisabled(true);
 	qpbStop->setEnabled(true);
+	qpbStop->setFocus();
 	qgbMode->setDisabled(true);
 	qgbOutput->setDisabled(true);
 }
 
 void VoiceRecorderDialog::on_qpbStop_clicked() {
-	if (!g.sh) {
+	if (!Global::get().sh) {
 		reset();
 		return;
 	}
 
-	VoiceRecorderPtr recorder(g.sh->recorder);
+	VoiceRecorderPtr recorder(Global::get().sh->recorder);
 	if (!recorder) {
 		reset();
 		return;
@@ -208,38 +252,36 @@ void VoiceRecorderDialog::on_qpbStop_clicked() {
 	// Stop clock and recording
 	qtTimer->stop();
 	recorder->stop();
-	
-	// Disable stop botton to indicate we reacted
+
+	// Disable stop button to indicate we reacted
 	qpbStop->setDisabled(true);
 	qpbStop->setText(tr("Stopping"));
 }
 
 void VoiceRecorderDialog::on_qtTimer_timeout() {
-	if (!g.sh) {
+	if (!Global::get().sh) {
 		reset();
 		return;
 	}
 
-	if (!g.uiSession) {
+	if (!Global::get().uiSession) {
 		reset(false);
 		return;
 	}
 
-	VoiceRecorderPtr recorder(g.sh->recorder);
-	if (!g.sh->recorder) {
+	VoiceRecorderPtr recorder(Global::get().sh->recorder);
+	if (!Global::get().sh->recorder) {
 		reset();
 		return;
 	}
 
-	const QTime elapsedTime = QTime(0,0).addMSecs(static_cast<int>(recorder->getElapsedTime() / 1000));
+	const QTime elapsedTime = QTime(0, 0).addMSecs(static_cast< int >(recorder->getElapsedTime() / 1000));
 	qlTime->setText(elapsedTime.toString());
 }
 
 void VoiceRecorderDialog::on_qpbTargetDirectoryBrowse_clicked() {
-	QString dir = QFileDialog::getExistingDirectory(this,
-	              tr("Select target directory"),
-	              QString(),
-	              QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+	QString dir = QFileDialog::getExistingDirectory(this, tr("Select target directory"), QString(),
+													QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
 	if (!dir.isEmpty())
 		qleTargetDirectory->setText(dir);
 }
@@ -247,20 +289,23 @@ void VoiceRecorderDialog::on_qpbTargetDirectoryBrowse_clicked() {
 void VoiceRecorderDialog::reset(bool resettimer) {
 	qtTimer->stop();
 
-	if (g.sh) {
-		VoiceRecorderPtr recorder(g.sh->recorder);
+	if (Global::get().sh) {
+		VoiceRecorderPtr recorder(Global::get().sh->recorder);
 		if (recorder) {
-			g.sh->recorder.reset();
-			g.sh->announceRecordingState(false);
+			Global::get().sh->recorder.reset();
+			Global::get().sh->announceRecordingState(false);
 		}
 	}
 
 	qpbStart->setEnabled(true);
+	qpbStart->setFocus();
 	qpbStop->setDisabled(true);
 	qpbStop->setText(tr("S&top"));
 
 	qgbMode->setEnabled(true);
-	qgbOutput->setEnabled(true);
+	qgbOutput->setDisabled(qrbTransportStandalone->isChecked());
+
+	guardTransportRecording();
 
 	if (resettimer)
 		qlTime->setText(QLatin1String("00:00:00"));
@@ -277,9 +322,6 @@ void VoiceRecorderDialog::onRecorderStarted() {
 
 void VoiceRecorderDialog::onRecorderError(int err, QString strerr) {
 	Q_UNUSED(err);
-	QMessageBox::critical(this,
-	                      tr("Recorder"),
-	                      strerr);
+	QMessageBox::critical(this, tr("Recorder"), strerr);
 	reset(false);
 }
-

@@ -1,0 +1,1 @@
+install_macos_static.sh

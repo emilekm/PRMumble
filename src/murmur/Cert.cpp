@@ -1,35 +1,45 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "murmur_pch.h"
+#include <QtCore/QtGlobal>
+
+#ifdef Q_OS_WIN
+#	include "win.h"
+#endif
 
 #include "Meta.h"
-#include "Server.h"
 #include "SelfSignedCertificate.h"
+#include "Server.h"
+
+#include <openssl/err.h>
+#include <openssl/evp.h>
+#include <openssl/x509.h>
+
+#ifdef Q_OS_WIN
+#	include <winsock2.h>
+#endif
 
 bool Server::isKeyForCert(const QSslKey &key, const QSslCertificate &cert) {
 	if (key.isNull() || cert.isNull() || (key.type() != QSsl::PrivateKey))
 		return false;
 
-	QByteArray qbaKey = key.toDer();
+	QByteArray qbaKey  = key.toDer();
 	QByteArray qbaCert = cert.toDer();
 
-	X509 *x509 = NULL;
-	EVP_PKEY *pkey = NULL;
-	BIO *mem = NULL;
+	X509 *x509     = nullptr;
+	EVP_PKEY *pkey = nullptr;
+	BIO *mem       = nullptr;
 
-	mem = BIO_new_mem_buf(qbaKey.data(), qbaKey.size());
-	Q_UNUSED(BIO_set_close(mem, BIO_NOCLOSE));
-	pkey = d2i_PrivateKey_bio(mem, NULL);
+	mem  = BIO_new_mem_buf(qbaKey.data(), static_cast< int >(qbaKey.size()));
+	pkey = d2i_PrivateKey_bio(mem, nullptr);
 	BIO_free(mem);
 
-	mem = BIO_new_mem_buf(qbaCert.data(), qbaCert.size());
-	Q_UNUSED(BIO_set_close(mem, BIO_NOCLOSE));
-	x509 = d2i_X509_bio(mem, NULL);
+	mem  = BIO_new_mem_buf(qbaCert.data(), static_cast< int >(qbaCert.size()));
+	x509 = d2i_X509_bio(mem, nullptr);
 	BIO_free(mem);
-	mem = NULL;
+	mem = nullptr;
 
 	if (x509 && pkey && X509_check_private_key(x509, pkey)) {
 		EVP_PKEY_free(pkey);
@@ -49,17 +59,15 @@ QSslKey Server::privateKeyFromPEM(const QByteArray &buf, const QByteArray &pass)
 	key = QSslKey(buf, QSsl::Rsa, QSsl::Pem, QSsl::PrivateKey, pass);
 	if (key.isNull())
 		key = QSslKey(buf, QSsl::Dsa, QSsl::Pem, QSsl::PrivateKey, pass);
-#if QT_VERSION >= 0x050500
 	if (key.isNull())
 		key = QSslKey(buf, QSsl::Ec, QSsl::Pem, QSsl::PrivateKey, pass);
-#endif
 	return key;
 }
 
 void Server::initializeCert() {
 	QByteArray crt, key, pass, dhparams;
 
-	// Clear all exising SSL settings
+	// Clear all existing SSL settings
 	// for this server.
 	qscCert.clear();
 	qlIntermediates.clear();
@@ -68,30 +76,30 @@ void Server::initializeCert() {
 	qsdhpDHParams = QSslDiffieHellmanParameters();
 #endif
 
-	crt = getConf("certificate", QString()).toByteArray();
-	key = getConf("key", QString()).toByteArray();
-	pass = getConf("passphrase", QByteArray()).toByteArray();
-	dhparams = getConf("sslDHParams", Meta::mp.qbaDHParams).toByteArray();
+	m_dbWrapper.getConfigurationTo(iServerNum, "certificate", crt);
+	m_dbWrapper.getConfigurationTo(iServerNum, "key", key);
+	m_dbWrapper.getConfigurationTo(iServerNum, "passphrase", pass);
+	m_dbWrapper.getConfigurationTo(iServerNum, "sslDHParams", dhparams);
 
-	QList<QSslCertificate> ql;
+	QList< QSslCertificate > ql;
 
 	// Attempt to load the private key.
-	if (! key.isEmpty()) {
+	if (!key.isEmpty()) {
 		qskKey = Server::privateKeyFromPEM(key, pass);
 	}
 
 	// If we still can't load the key, try loading any keys from the certificate
-	if (qskKey.isNull() && ! crt.isEmpty()) {
+	if (qskKey.isNull() && !crt.isEmpty()) {
 		qskKey = Server::privateKeyFromPEM(crt);
 	}
 
 	// If have a key, walk the list of certs, find the one for our key,
 	// remove any certs for our key from the list, what's left is part of
 	// the CA certificate chain.
-	if (! qskKey.isNull()) {
+	if (!qskKey.isNull()) {
 		ql << QSslCertificate::fromData(crt);
 		ql << QSslCertificate::fromData(key);
-		for (int i=0;i<ql.size();++i) {
+		for (int i = 0; i < ql.size(); ++i) {
 			const QSslCertificate &c = ql.at(i);
 			if (isKeyForCert(qskKey, c)) {
 				qscCert = c;
@@ -102,46 +110,46 @@ void Server::initializeCert() {
 	}
 
 #if defined(USE_QSSLDIFFIEHELLMANPARAMETERS)
-	if (! dhparams.isEmpty()) {
+	if (!dhparams.isEmpty()) {
 		QSslDiffieHellmanParameters qdhp = QSslDiffieHellmanParameters::fromEncoded(dhparams);
 		if (qdhp.isValid()) {
 			qsdhpDHParams = qdhp;
 		} else {
-			log(QString::fromLatin1("Unable to use specified Diffie-Hellman parameters (sslDHParams): %1").arg(qdhp.errorString()));
+			log(QString::fromLatin1("Unable to use specified Diffie-Hellman parameters (sslDHParams): %1")
+					.arg(qdhp.errorString()));
 		}
 	}
 #else
-	if (! dhparams.isEmpty()) {
-		log("Diffie-Hellman parameters (sslDHParams) were specified, but will not be used. This version of Murmur does not support Diffie-Hellman parameters.");
+	if (!dhparams.isEmpty()) {
+		log("Diffie-Hellman parameters (sslDHParams) were specified, but will not be used. This version of Murmur does "
+			"not support Diffie-Hellman parameters.");
 	}
 #endif
 
 	QString issuer;
-#if QT_VERSION >= 0x050000
+
 	QStringList issuerNames = qscCert.issuerInfo(QSslCertificate::CommonName);
-	if (! issuerNames.isEmpty()) {
+	if (!issuerNames.isEmpty()) {
 		issuer = issuerNames.first();
 	}
-#else
-	issuer = qscCert.issuerInfo(QSslCertificate::CommonName);
-#endif
 
 	// Really old certs/keys are no good, throw them away so we can
 	// generate a new one below.
 	if (issuer == QString::fromUtf8("Murmur Autogenerated Certificate")) {
 		log("Old autogenerated certificate is unusable for registration, invalidating it");
 		qscCert = QSslCertificate();
-		qskKey = QSslKey();
+		qskKey  = QSslKey();
 	}
 
 	// If we have a cert, and it's a self-signed one, but we're binding to
 	// all the same addresses as the Meta server is, use it's cert instead.
 	// This allows a self-signed certificate generated by Murmur to be
 	// replaced by a CA-signed certificate in the .ini file.
-	if (!qscCert.isNull() && issuer.startsWith(QString::fromUtf8("Murmur Autogenerated Certificate")) && ! Meta::mp.qscCert.isNull() && ! Meta::mp.qskKey.isNull() && (Meta::mp.qlBind == qlBind)) {
-		qscCert = Meta::mp.qscCert;
-		qskKey = Meta::mp.qskKey;
-		qlIntermediates = Meta::mp.qlIntermediates;
+	if (!qscCert.isNull() && issuer.startsWith(QString::fromUtf8("Murmur Autogenerated Certificate"))
+		&& !Meta::mp->qscCert.isNull() && !Meta::mp->qskKey.isNull() && (Meta::mp->qlBind == qlBind)) {
+		qscCert         = Meta::mp->qscCert;
+		qskKey          = Meta::mp->qskKey;
+		qlIntermediates = Meta::mp->qlIntermediates;
 
 		if (!qscCert.isNull() && !qskKey.isNull()) {
 			bUsingMetaCert = true;
@@ -150,13 +158,13 @@ void Server::initializeCert() {
 
 	// If we still don't have a certificate by now, try to load the one from Meta
 	if (qscCert.isNull() || qskKey.isNull()) {
-		if (! key.isEmpty() || ! crt.isEmpty()) {
+		if (!key.isEmpty() || !crt.isEmpty()) {
 			log("Certificate specified, but failed to load.");
 		}
 
-		qskKey = Meta::mp.qskKey;
-		qscCert = Meta::mp.qscCert;
-		qlIntermediates = Meta::mp.qlIntermediates;
+		qskKey          = Meta::mp->qskKey;
+		qscCert         = Meta::mp->qscCert;
+		qlIntermediates = Meta::mp->qlIntermediates;
 
 		if (!qscCert.isNull() && !qskKey.isNull()) {
 			bUsingMetaCert = true;
@@ -170,8 +178,8 @@ void Server::initializeCert() {
 				log("Certificate or key generation failed");
 			}
 
-			setConf("certificate", qscCert.toPem());
-			setConf("key", qskKey.toPem());
+			m_dbWrapper.setConfiguration(iServerNum, "certificate", qscCert.toPem().toStdString());
+			m_dbWrapper.setConfiguration(iServerNum, "key", qskKey.toPem().toStdString());
 		}
 	}
 

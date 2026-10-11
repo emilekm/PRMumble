@@ -1,3 +1,8 @@
+// Copyright The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
 /**
  * Benchmark of different locking mechanisms; QMutex, PosixMutex, Silly
  * (int-flag).
@@ -12,14 +17,14 @@
 // one timeslice.
 #define ITER 100000000
 
-typedef QPair<quint64,int> tr;
+typedef QPair< quint64, int > tr;
 
 class SillyLock {
-	public:
-		int counter;
-		SillyLock();
-		void lock();
-		void unlock();
+public:
+	int counter;
+	SillyLock();
+	void lock();
+	void unlock();
 };
 
 SillyLock::SillyLock() {
@@ -41,15 +46,15 @@ void SillyLock::unlock() {
 }
 
 class PosixLock {
-	public:
-		pthread_mutex_t m;
-		PosixLock();
-		void lock();
-		void unlock();
+public:
+	pthread_mutex_t m;
+	PosixLock();
+	void lock();
+	void unlock();
 };
 
 PosixLock::PosixLock() {
-	pthread_mutex_init(&m, NULL);
+	pthread_mutex_init(&m, nullptr);
 }
 
 void PosixLock::lock() {
@@ -60,23 +65,21 @@ void PosixLock::unlock() {
 	pthread_mutex_unlock(&m);
 }
 
-template<class T>
-class SpeedTest {
-	public:
-		T &lock;
+template< class T > class SpeedTest {
+public:
+	T &lock;
 
-		SpeedTest(T &l) : lock(l) {
-		}
+	SpeedTest(T &l) : lock(l) {}
 
-		quint64 test() {
-			Timer t;
-			t.restart();
-			for (int i=0;i<ITER;i++) {
-				lock.lock();
-				lock.unlock();
-			}
-			return t.elapsed();
+	quint64 test() {
+		Timer t;
+		t.restart();
+		for (int i = 0; i < ITER; i++) {
+			lock.lock();
+			lock.unlock();
 		}
+		return t.elapsed();
+	}
 };
 
 int main(int argc, char **argv) {
@@ -87,10 +90,10 @@ int main(int argc, char **argv) {
 	SillyLock sl;
 	PosixLock pl;
 
-	SpeedTest<QMutex> stqm(qm);
-	SpeedTest<QMutex> stqmr(qmr);
-	SpeedTest<SillyLock> stsl(sl);
-	SpeedTest<PosixLock> stpl(pl);
+	SpeedTest< QMutex > stqm(qm);
+	SpeedTest< QMutex > stqmr(qmr);
+	SpeedTest< SillyLock > stsl(sl);
+	SpeedTest< PosixLock > stpl(pl);
 
 	quint64 elapsed;
 
@@ -108,3 +111,5 @@ int main(int argc, char **argv) {
 }
 
 // #include "Lock.moc"
+
+#undef ITER

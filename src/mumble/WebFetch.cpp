@@ -1,24 +1,21 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "mumble_pch.hpp"
-
 #include "WebFetch.h"
 
-#include "Global.h"
 #include "NetworkConfig.h"
+#include "Global.h"
+
+#include <QtCore/QRegularExpression>
+#include <QtNetwork/QNetworkReply>
 
 WebFetch::WebFetch(QString service, QUrl url, QObject *obj, const char *slot)
-	: QObject()
-	, qoObject(obj)
-	, cpSlot(slot)
-	, m_service(service) {
-
+	: QObject(), qoObject(obj), cpSlot(slot), m_service(service) {
 	url.setScheme(QLatin1String("https"));
 
-	if (!g.s.qsServicePrefix.isEmpty()) {
+	if (!Global::get().s.qsServicePrefix.isEmpty()) {
 		url.setHost(prefixedServiceHost());
 	} else {
 		url.setHost(serviceHost());
@@ -26,14 +23,14 @@ WebFetch::WebFetch(QString service, QUrl url, QObject *obj, const char *slot)
 
 	qnr = Network::get(url);
 	connect(qnr, SIGNAL(finished()), this, SLOT(finished()));
-	connect(this, SIGNAL(fetched(QByteArray,QUrl,QMap<QString,QString>)), obj, slot);
+	connect(this, SIGNAL(fetched(QByteArray, QUrl, QMap< QString, QString >)), obj, slot);
 }
 
 QString WebFetch::prefixedServiceHost() const {
-	if (g.s.qsServicePrefix.isEmpty()) {
+	if (Global::get().s.qsServicePrefix.isEmpty()) {
 		return serviceHost();
 	}
-	return QString::fromLatin1("%1-%2.mumble.info").arg(g.s.qsServicePrefix, m_service);
+	return QString::fromLatin1("%1-%2.mumble.info").arg(Global::get().s.qsServicePrefix, m_service);
 }
 
 QString WebFetch::serviceHost() const {
@@ -48,7 +45,7 @@ static QString fromUtf8(const QByteArray &qba) {
 
 void WebFetch::finished() {
 	// Note that if this functions succeeds, it should deleteLater() itself, as this is a temporary object.
-	Q_ASSERT(qobject_cast<QNetworkReply *>(sender()) == qnr);
+	Q_ASSERT(qobject_cast< QNetworkReply * >(sender()) == qnr);
 	qnr->disconnect();
 	qnr->deleteLater();
 
@@ -61,17 +58,18 @@ void WebFetch::finished() {
 		if (a.isNull())
 			a.append("");
 
-		QMap<QString, QString> headers;
+		QMap< QString, QString > headers;
 
-		foreach(const QByteArray &headerName, qnr->rawHeaderList()) {
-			QString name = fromUtf8(headerName);
+		for (const QByteArray &headerName : qnr->rawHeaderList()) {
+			QString name  = fromUtf8(headerName);
 			QString value = fromUtf8(qnr->rawHeader(headerName));
-			if (! name.isEmpty() && ! value.isEmpty()) {
+			if (!name.isEmpty() && !value.isEmpty()) {
 				headers.insert(name, value);
 				if (name == QLatin1String("Use-Service-Prefix")) {
-					QRegExp servicePrefixRegExp(QLatin1String("^[a-zA-Z]+$"));
-					if (servicePrefixRegExp.exactMatch(value)) {
-						g.s.qsServicePrefix = value.toLower();
+					const QRegularExpression servicePrefixRegExp(
+						QRegularExpression::anchoredPattern(QLatin1String("^[a-zA-Z]+$")));
+					if (servicePrefixRegExp.match(value).hasMatch()) {
+						Global::get().s.qsServicePrefix = value.toLower();
 					}
 				}
 			}
@@ -79,13 +77,18 @@ void WebFetch::finished() {
 
 		emit fetched(a, url, headers);
 		deleteLater();
-	} else if (url.host() == prefixedServiceHost()) {
+	} else if (url.host() == prefixedServiceHost() && url.host() != serviceHost()) {
+		// We have tried to fetch from a local service domain (e.Global::get(). de-update.mumble.info)
+		// which has failed, so naturally we want to try the non-local one (update.mumble.info)
+		// as well as maybe that one will work.
+		// This of course only makes sense, if prefixedServiceHost() and serviceHost() are in fact
+		// different hosts.
 		url.setHost(serviceHost());
 
 		qnr = Network::get(url);
 		connect(qnr, SIGNAL(finished()), this, SLOT(finished()));
 	} else {
-		emit fetched(QByteArray(), url, QMap<QString,QString>());
+		emit fetched(QByteArray(), url, QMap< QString, QString >());
 		deleteLater();
 	}
 }

@@ -1,106 +1,137 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "mumble_pch.hpp"
-
 #include "Themes.h"
 #include "MainWindow.h"
 #include "MumbleApplication.h"
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Settings.h"
 #include "Global.h"
 
-boost::optional<ThemeInfo::StyleInfo> Themes::getConfiguredStyle(const Settings &settings) {
-	const ThemeMap themes = getThemes();
-	ThemeMap::const_iterator themeIt;
-	ThemeInfo::StylesMap::const_iterator styleIt;
+#ifdef Q_OS_MAC
+#	include <QProcess>
+#endif
 
-	/* Set PRMumble as the default theme if there's no theme entry in the registry */
-	if (settings.themeName.isEmpty()) {
-		themeIt = themes.find(QLatin1String("PRMumble"));
+#include <QStyleHints>
+
+#include <optional>
+
+#ifdef Q_OS_MAC
+// declared in ThemeSwitch_macx.mm
+extern void setLightAppearance();
+extern void setDarkAppearance();
+extern void resetAppearanceToSystem();
+#endif
+
+std::optional< ThemeInfo::StyleInfo > Themes::getThemeStyle(const Settings &settings, bool darkMode) {
+	QString themeStyleName = darkMode ? settings.themeDarkStyleName : settings.themeStyleName;
+	QString themeName      = darkMode ? settings.themeDarkName : settings.themeName;
+
+	if (themeName.isEmpty() && themeStyleName.isEmpty()) {
+		themeName      = QStringLiteral("PRMumble");
+		themeStyleName = QStringLiteral("Reality");
 	}
-	else {
-		themeIt = themes.find(settings.themeName);
-	}
+
+	const ThemeMap themes = getThemes();
+	auto themeIt          = themes.find(themeName);
 	if (themeIt == themes.end()) {
-		qWarning() << "Could not find configured theme" << settings.themeName;
-		return boost::none;
+		qWarning() << "Could not find configured theme" << themeName;
+		return std::nullopt;
 	}
-	
-	/* Set Reality as the default theme style if there's no theme style entry in the registry */
-	if (settings.themeStyleName.isEmpty()) {
-		styleIt = themeIt->styles.find(QLatin1String("Reality"));
-	}
-	else {
-		styleIt = themeIt->styles.find(settings.themeStyleName);
-	}
+
+	auto styleIt = themeIt->styles.find(themeStyleName);
 	if (styleIt == themeIt->styles.end()) {
-		qWarning() << "Configured theme" << settings.themeName << "does not have configured style" << settings.themeStyleName;
-		return boost::none;
+		qWarning() << "Configured theme \"" << themeName << "\" does not have configured style \"" << themeStyleName
+				   << "\"";
+		return std::nullopt;
 	}
-	
+
 	return *styleIt;
 }
 
-void Themes::setConfiguredStyle(Settings &settings, boost::optional<ThemeInfo::StyleInfo> style, bool &outChanged) {
+std::optional< ThemeInfo::StyleInfo > Themes::getConfiguredStyle(const Settings &settings) {
+	switch (settings.styleType) {
+		case StyleType::Light:
+			return getThemeStyle(settings, false);
+		case StyleType::Dark:
+			return getThemeStyle(settings, true);
+		case StyleType::Auto:
+			return getThemeStyle(settings, detectSystemDarkTheme());
+	}
+	assert(false);
+	return std::nullopt; // fallback (should not normally reach here)
+}
+
+bool Themes::setConfiguredStyleHelper(QString &themeName, QString &themeStyleName,
+									  std::optional< ThemeInfo::StyleInfo > style) {
 	if (style) {
-		if (settings.themeName != style->themeName || settings.themeStyleName != style->name) {
-			settings.themeName = style->themeName;
-			settings.themeStyleName = style->name;
-			outChanged = true;
+		if (themeName != style->themeName || themeStyleName != style->name) {
+			themeName      = style->themeName;
+			themeStyleName = style->name;
+			return true;
 		}
 	} else {
-		if (!settings.themeName.isEmpty() || !settings.themeStyleName.isEmpty()) {
-			settings.themeName = settings.themeStyleName = QString();
-			outChanged = true;
+		if (!themeName.isEmpty() || !themeStyleName.isEmpty()) {
+			themeName = themeStyleName = QString();
+			return true;
 		}
 	}
+	return false;
+}
+
+bool Themes::setConfiguredStyle(Settings &settings, std::optional< ThemeInfo::StyleInfo > style) {
+	return setConfiguredStyleHelper(settings.themeName, settings.themeStyleName, style);
+}
+
+bool Themes::setConfiguredDarkStyle(Settings &settings, std::optional< ThemeInfo::StyleInfo > style) {
+	return setConfiguredStyleHelper(settings.themeDarkName, settings.themeDarkStyleName, style);
 }
 
 void Themes::applyFallback() {
 	qWarning() << "Applying fallback style sheet";
-	
-	QStringList skinPaths;
-	skinPaths << QLatin1String(":/themes/Reality");
-	QDir::setSearchPaths(QLatin1String("skin"), skinPaths);
-	
-	QString userStylesheetFn = userStylesheetPath();
-	QString userStylesheetContent;
-	if (readStylesheet(userStylesheetFn, userStylesheetContent)) {
-		qWarning("Themes: allowing user stylesheet at '%s' to override fallback stylesheet", qPrintable(userStylesheetFn));
-	}
 
-	qApp->setStyleSheet(
-		getDefaultStylesheet() +
-		QLatin1String("\n") +
-		userStylesheetContent
-	);
+	QStringList skinPaths;
+	skinPaths << QLatin1String(":/themes/Default");
+	QString defaultTheme = getDefaultStylesheet();
+	setTheme(defaultTheme, skinPaths);
 }
 
 bool Themes::applyConfigured() {
-	boost::optional<ThemeInfo::StyleInfo> style = Themes::getConfiguredStyle(g.s);
+	std::optional< ThemeInfo::StyleInfo > style = Themes::getConfiguredStyle(Global::get().s);
 	if (!style) {
 		return false;
 	}
-	
+
 	const QFileInfo qssFile(style->getPlatformQss());
-	
+
 	qWarning() << "Theme:" << style->themeName;
 	qWarning() << "Style:" << style->name;
 	qWarning() << "--> qss:" << qssFile.absoluteFilePath();
-	
+
+#ifdef Q_OS_MAC
+	switch (Global::get().s.styleType) {
+		case StyleType::Light:
+			setLightAppearance();
+			break;
+		case StyleType::Dark:
+			setDarkAppearance();
+			break;
+		case StyleType::Auto:
+			resetAppearanceToSystem();
+			break;
+	}
+#endif
+
 	QFile file(qssFile.absoluteFilePath());
 	if (!file.open(QFile::ReadOnly)) {
 		qWarning() << "Failed to open theme stylesheet:" << file.errorString();
 		return false;
 	}
-	
+
 	QStringList skinPaths;
 	skinPaths << qssFile.path();
-	skinPaths << QLatin1String(":/themes/Reality"); // Some skins might want to fall-back on our built-in resources
-	QDir::setSearchPaths(QLatin1String("skin"), skinPaths);
+	skinPaths << QLatin1String(":/themes/Default"); // Some skins might want to fall-back on our built-in resources
 
 	QString themeQss = QString::fromUtf8(file.readAll());
 	setTheme(themeQss, skinPaths);
@@ -109,19 +140,14 @@ bool Themes::applyConfigured() {
 
 void Themes::setTheme(QString &themeQss, QStringList &skinPaths) {
 	QDir::setSearchPaths(QLatin1String("skin"), skinPaths);
-	
+
 	QString userStylesheetFn = userStylesheetPath();
 	QString userStylesheetContent;
 	if (readStylesheet(userStylesheetFn, userStylesheetContent)) {
 		qWarning("Themes: allowing user stylesheet at '%s' to override the stylesheet", qPrintable(userStylesheetFn));
 	}
-	
-	qApp->setStyleSheet(
-		themeQss +
-		QLatin1String("\n") +
-		userStylesheetContent
-	);
 
+	qApp->setStyleSheet(themeQss + QLatin1String("\n") + userStylesheetContent);
 }
 
 bool Themes::apply() {
@@ -129,11 +155,48 @@ bool Themes::apply() {
 	if (!result) {
 		applyFallback();
 	}
-	
-	if (g.mw != NULL) {
-		g.mw->qteLog->document()->setDefaultStyleSheet(qApp->styleSheet());
+
+	if (Global::get().mw) {
+		Global::get().mw->qteLog->document()->setDefaultStyleSheet(qApp->styleSheet());
 	}
 	return result;
+}
+
+bool Themes::detectSystemDarkTheme() {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+	Qt::ColorScheme colorScheme = QGuiApplication::styleHints()->colorScheme();
+	if (colorScheme != Qt::ColorScheme::Unknown) {
+		return colorScheme == Qt::ColorScheme::Dark;
+	}
+	// colorScheme() can return Unknown on some platforms (e.g. wlroots compositors),
+	// so fall back to comparing palette lightness values
+	QPalette defaultPalette;
+	return defaultPalette.color(QPalette::WindowText).lightness() > defaultPalette.color(QPalette::Window).lightness();
+#else
+#	if defined(Q_OS_WIN)
+	QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+					   QSettings::NativeFormat);
+	return settings.value("AppsUseLightTheme", 1).toInt() == 0; // 0 means dark mode
+#	elif defined(Q_OS_MAC)
+	QProcess process;
+	process.start("defaults", { "read", "-g", "AppleInterfaceStyle" });
+	process.waitForFinished(100);
+	QString output = process.readAllStandardOutput().trimmed();
+	// If no output, assume Light Mode
+	return output == "Dark";
+#	else
+	// Fallback for other OSes
+	QByteArray platform = qgetenv("QT_QPA_PLATFORM");
+	if (platform.contains("darkmode=2")) {
+		return true;
+	} else if (platform.contains("darkmode=1")) {
+		QPalette defaultPalette;
+		return defaultPalette.color(QPalette::WindowText).lightness()
+			   > defaultPalette.color(QPalette::Window).lightness();
+	}
+	return false;
+#	endif
+#endif
 }
 
 ThemeMap Themes::getThemes() {
@@ -141,24 +204,25 @@ ThemeMap Themes::getThemes() {
 }
 
 QDir Themes::getUserThemesDirectory() {
-	return QDir(g.qdBasePath.absolutePath() + QLatin1String("/Themes"));
+	return QDir(Global::get().qdBasePath.absolutePath() + QLatin1String("/Themes"));
 }
 
-QVector<QDir> Themes::getSearchDirectories() {
-	QVector<QDir> themeSearchDirectories;
+QVector< QDir > Themes::getSearchDirectories() {
+	QVector< QDir > themeSearchDirectories;
 
 	// Built-in themes contained in the binary have the lowest priority
-	themeSearchDirectories << QDir(QLatin1String(":builtin/themes"));
+	themeSearchDirectories << QDir(QLatin1String(":themes"));
 	// Next come themes found in the applications Themes directory
-	themeSearchDirectories << QDir(MumbleApplication::instance()->applicationVersionRootPath() + QLatin1String("/Themes"));
-	// Highest priorty have themes located in the user directory
+	themeSearchDirectories << QDir(MumbleApplication::instance()->applicationVersionRootPath()
+								   + QLatin1String("/Themes"));
+	// Highest priority have themes located in the user directory
 	themeSearchDirectories << getUserThemesDirectory();
-	
+
 	return themeSearchDirectories;
 }
 
 QString Themes::userStylesheetPath() {
-	return g.qdBasePath.absolutePath() + QLatin1String("/Reality.qss");
+	return Global::get().qdBasePath.absolutePath() + QLatin1String("/Reality.qss");
 }
 
 bool Themes::readStylesheet(const QString &stylesheetFn, QString &stylesheetContent) {
@@ -173,5 +237,7 @@ bool Themes::readStylesheet(const QString &stylesheetFn, QString &stylesheetCont
 }
 
 QString Themes::getDefaultStylesheet() {
-	return QLatin1String(".log-channel{text-decoration:none;}.log-user{text-decoration:none;}p{margin:0;}#qwMacWarning,#qwInlineNotice{background-color:#FFFEDC;border-radius:5px;border:1px solid #B5B59E;}");
+	return QLatin1String(".log-channel{text-decoration:none;}.log-user{text-decoration:none;}p{margin:0;}#qwMacWarning,"
+						 "#qwInlineNotice{background-color:#FFFEDC;border-radius:5px;border:1px solid #B5B59E;}"
+						 "#qwMacWarning > QLabel,#qwInlineNotice > QLabel{color:#333;}");
 }

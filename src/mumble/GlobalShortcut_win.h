@@ -1,4 +1,4 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
@@ -7,95 +7,146 @@
 #define MUMBLE_MUMBLE_GLOBALSHORTCUT_WIN_H_
 
 #include "GlobalShortcut.h"
-#include "Timer.h"
-
-#ifdef USE_GKEY
-#include "GKey.h"
-#endif
 
 #ifdef USE_XBOXINPUT
-#include "XboxInput.h"
+#	include "XboxInput.h"
 #endif
 
-#define DIRECTINPUT_VERSION 0x0800
-#include <dinput.h>
+#include <condition_variable>
+#include <memory>
+#include <span>
+#include <string>
+#include <unordered_map>
 
-typedef QPair<GUID, DWORD> qpButton;
+#include <readerwriterqueue/readerwriterqueue.h>
 
-struct InputDevice {
-	LPDIRECTINPUTDEVICE8 pDID;
-
-	QString name;
-
-	GUID guid;
-	QVariant vguid;
-
-	GUID guidproduct;
-	QVariant vguidproduct;
-
-	uint16_t vendor_id;
-	uint16_t product_id;
-
-	// dwType to name
-	QHash<DWORD, QString> qhNames;
-
-	// Map dwType to dwOfs in our structure
-	QHash<DWORD, DWORD> qhTypeToOfs;
-
-	// Map dwOfs in our structure to dwType
-	QHash<DWORD, DWORD> qhOfsToType;
-
-	// Buttons active since last reset
-	QSet<DWORD> activeMap;
-};
+#ifdef USE_GKEY
+class GKeyLibrary;
+#endif
 
 class GlobalShortcutWin : public GlobalShortcutEngine {
+	Q_OBJECT
+	Q_DISABLE_COPY(GlobalShortcutWin)
+
+public:
+	static constexpr size_t QUEUE_CAPACITY = 64;
+
+	static void registerMetaTypes();
+
+	/// @param oldShortcuts List of shortcuts to migrate.
+	/// @returns List of shortcuts in the new format.
+	static QList< Shortcut > migrateSettings(const QList< Shortcut > &oldShortcuts);
+
+	/// Inject a native Windows raw input message into GlobalShortcutWin's
+	/// thread. This method is meant to be called from the main thread
+	/// to pass native Windows keyboard messages to GlobalShortcutWin.
+	///
+	/// @param msg The raw input handle to inject into GlobalShortcutWin.
+	void injectRawInputMessage(HRAWINPUT handle);
+
+	ButtonInfo buttonInfo(const QVariant &button) override;
+	void run() override;
+
+	GlobalShortcutWin();
+	~GlobalShortcutWin() override;
+public slots:
+	void deviceRemoved(const HANDLE deviceHandle);
+
+protected:
+	class MsgRaw {
+	public:
+		enum Type : uint8_t { Hid, Keyboard, Mouse };
+
+		constexpr Type type() { return m_type; };
+
+		virtual ~MsgRaw() = default;
+
+	protected:
+		MsgRaw(const Type type) : m_type(type) {}
+
 	private:
-		Q_OBJECT
-		Q_DISABLE_COPY(GlobalShortcutWin)
+		Type m_type;
+	};
+
+	class MsgHid : public MsgRaw {
 	public:
-		BYTE ucKeyState[256];
-		LPDIRECTINPUT8 pDI;
-		QHash<GUID, InputDevice *> qhInputDevices;
-		HHOOK hhMouse, hhKeyboard;
-		unsigned int uiHardwareDevices;
-		Timer tDoubleClick;
-		bool bHook;
-#ifdef USE_GKEY
-		GKeyLibrary *gkey;
-#endif
+		using RawReports = std::span< const BYTE >;
+
+		MsgHid(HANDLE deviceHandle, const RawReports rawReports, const DWORD reportSize)
+			: MsgRaw(Hid), deviceHandle(deviceHandle), reports(rawReports.size()), reportSize(reportSize) {
+			memcpy(reports.data(), rawReports.data(), reports.size());
+		}
+
+		HANDLE deviceHandle;
+		std::vector< char > reports;
+		DWORD reportSize;
+	};
+
+	class MsgKeyboard : public MsgRaw {
+	public:
+		MsgKeyboard(const USHORT flags, const USHORT scanCode, const USHORT virtualKey)
+			: MsgRaw(Keyboard), flags(flags), scanCode(scanCode), virtualKey(virtualKey) {}
+
+		USHORT flags;
+		USHORT scanCode;
+		USHORT virtualKey;
+	};
+
+	class MsgMouse : public MsgRaw {
+	public:
+		MsgMouse(const USHORT buttonFlags) : MsgRaw(Mouse), buttonFlags(buttonFlags) {}
+
+		USHORT buttonFlags;
+	};
+
+	struct Device {
+		std::string name;
+		std::string prefix;
+		std::vector< uint8_t > data;
+		std::vector< bool > buttons;
+		std::pair< uint16_t, uint16_t > usageRange;
 #ifdef USE_XBOXINPUT
-		/// xboxinputLastPacket holds the last packet number
-		/// that was processed. Any new data queried for a
-		/// device is only valid if the packet number is
-		/// different than last time we queried it.
-		uint32_t   xboxinputLastPacket[XBOXINPUT_MAX_DEVICES];
-		XboxInput *xboxinput;
-		/// nxboxinput holds the number of XInput devices
-		/// available on the system. It is filled out by
-		/// our EnumDevices callback.
-		int nxboxinput;
+		bool xinput;
+		Device() : xinput(false){};
 #endif
+	};
 
-		static BOOL CALLBACK EnumSuitableDevicesCB(LPCDIDEVICEINSTANCE, LPDIRECTINPUTDEVICE8, DWORD, DWORD, LPVOID);
-		static BOOL CALLBACK EnumDevicesCB(LPCDIDEVICEINSTANCE, LPVOID);
-		static BOOL CALLBACK EnumDeviceObjectsCallback(LPCDIDEVICEOBJECTINSTANCE lpddoi, LPVOID pvRef);
-		static LRESULT CALLBACK HookKeyboard(int, WPARAM, LPARAM);
-		static LRESULT CALLBACK HookMouse(int, WPARAM, LPARAM);
+	void processMsgHid(MsgHid &msg);
+	void processMsgKeyboard(MsgKeyboard &msg);
+	void processMsgMouse(const MsgMouse &msg);
+	void processOther();
 
-		virtual bool canSuppress() Q_DECL_OVERRIDE;
-		void run() Q_DECL_OVERRIDE;
-	public slots:
-		void timeTicked();
-	public:
-		GlobalShortcutWin();
-		~GlobalShortcutWin() Q_DECL_OVERRIDE;
-		void unacquire();
-		QString buttonName(const QVariant &) Q_DECL_OVERRIDE;
+	std::condition_variable m_condVar;
 
-		virtual void prepareInput() Q_DECL_OVERRIDE;
+	moodycamel::ReaderWriterQueue< std::unique_ptr< MsgRaw > > m_msgQueue;
+
+	typedef std::unordered_map< HANDLE, Device > DeviceMap;
+	DeviceMap m_devices;
+#ifdef USE_XBOXINPUT
+	std::unique_ptr< XboxInput > m_xinput;
+	/// Holds the number of XInput devices available on the system.
+	/// It is filled out by addDevice().
+	uint8_t m_xinputDevices;
+	/// Holds the last packet number that was processed.
+	/// Any new data queried for a device is only valid
+	/// if the packet number is different than last time we queried it.
+	uint32_t m_xinputLastPacket[XBOXINPUT_MAX_DEVICES];
+
+	static bool xinputIsPressed(const uint8_t bit, const XboxInputState &state);
+#endif
+#ifdef USE_GKEY
+	std::unique_ptr< GKeyLibrary > m_gkey;
+#endif
+	DeviceMap::iterator addDevice(const HANDLE deviceHandle);
+
+	static std::string utf16To8(const std::wstring &wstr);
+
+private:
+	std::map< HANDLE, unsigned int > m_throttleThreshold;
+	std::map< HANDLE, unsigned int > m_throttleCounter;
+
+	bool isRateLimited(HANDLE device);
+	void tryPlaceEvent(HANDLE device, bool rawhid, std::unique_ptr< MsgRaw > &&event);
 };
-
-uint qHash(const GUID &);
 
 #endif

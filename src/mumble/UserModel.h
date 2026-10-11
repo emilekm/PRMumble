@@ -1,4 +1,4 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
@@ -11,6 +11,8 @@
 #include <QtCore/QObject>
 #include <QtCore/QSet>
 #include <QtGui/QIcon>
+
+#include <optional>
 
 class User;
 class ClientUser;
@@ -25,19 +27,23 @@ public:
 	Channel *cChan;
 	ClientUser *pUser;
 
+	bool isListener;
+
 	bool bCommentSeen;
 
 	ModelItem *parent;
-	QList<ModelItem *> qlChildren;
-	QList<ModelItem *> qlHiddenChildren;
+	QList< ModelItem * > qlChildren;
+	QList< ModelItem * > qlHiddenChildren;
+	/// Number of users in this channel (recursive)
 	int iUsers;
 
-	static QHash <Channel *, ModelItem *> c_qhChannels;
-	static QHash <ClientUser *, ModelItem *> c_qhUsers;
+	static QHash< const Channel *, ModelItem * > c_qhChannels;
+	static QHash< const ClientUser *, ModelItem * > c_qhUsers;
+	static QHash< const ClientUser *, QList< ModelItem * > > s_userProxies;
 	static bool bUsersTop;
 
 	ModelItem(Channel *c);
-	ModelItem(ClientUser *p);
+	ModelItem(ClientUser *p, bool isListener = false);
 	ModelItem(ModelItem *);
 	~ModelItem();
 
@@ -47,107 +53,195 @@ public:
 	ClientUser *userAt(int idx) const;
 	Channel *channelAt(int idx) const;
 	int rowOf(Channel *c) const;
-	int rowOf(ClientUser *p) const;
+	int rowOf(ClientUser *p, const bool isListener) const;
 	int rowOfSelf() const;
 	int rows() const;
 	int insertIndex(Channel *c) const;
-	int insertIndex(ClientUser *p) const;
+	int insertIndex(ClientUser *p, bool isListener = false) const;
 	QString hash() const;
 	void wipe();
 };
 
 class UserModel : public QAbstractItemModel {
-		friend struct ModelItem;
-		friend class UserView;
-	private:
-		Q_OBJECT
-		Q_DISABLE_COPY(UserModel)
-	protected:
-		QIcon qiTalkingOn, qiTalkingWhisper, qiTalkingShout, qiTalkingOff;
-		QIcon qiMutedPushToMute, qiMutedSelf, qiMutedServer, qiMutedLocal, qiIgnoredLocal, qiMutedSuppressed;
-		QIcon qiPrioritySpeaker;
-		QIcon qiRecording;
-		QIcon qiDeafenedSelf, qiDeafenedServer;
-		QIcon qiAuthenticated, qiChannel, qiLinkedChannel, qiActiveChannel;
-		QIcon qiFriend;
-		QIcon qiComment, qiCommentSeen, qiFilter;
-		ModelItem *miRoot;
-		QSet<Channel *> qsLinked;
-		QMap<QString, ClientUser *> qmHashes;
+	friend struct ModelItem;
+	friend class UserView;
 
-		bool bClicked;
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(UserModel)
+protected:
+	QIcon qiTalkingOn, qiTalkingMuted, qiTalkingWhisper, qiTalkingShout, qiTalkingOff;
+	QIcon qiMutedPushToMute, qiMutedSelf, qiMutedServer, qiMutedLocal, qiIgnoredLocal, qiMutedSuppressed;
+	QIcon qiPrioritySpeaker;
+	QIcon qiRecording;
+	QIcon qiDeafenedSelf, qiDeafenedServer;
+	QIcon qiAuthenticated, qiChannel, qiLinkedChannel, qiActiveChannel;
+	QIcon qiFriend;
+	QIcon qiComment, qiCommentSeen, qiFilter, qiPin;
+	QIcon qiLock_locked, qiLock_unlocked;
+	QIcon qiEar;
+	ModelItem *miRoot;
+	QSet< Channel * > qsLinked;
+	QMap< QString, ClientUser * > qmHashes;
 
-		void recursiveClone(const ModelItem *old, ModelItem *item, QModelIndexList &from, QModelIndexList &to);
-		ModelItem *moveItem(ModelItem *oldparent, ModelItem *newparent, ModelItem *item);
+	bool bClicked;
 
-		QString stringIndex(const QModelIndex &index) const;
-	public:
-		UserModel(QObject *parent = 0);
-		~UserModel() Q_DECL_OVERRIDE;
+	void recursiveClone(const ModelItem *old, ModelItem *item, QModelIndexList &from, QModelIndexList &to);
+	ModelItem *moveItem(ModelItem *oldparent, ModelItem *newparent, ModelItem *item);
 
-		QModelIndex index(ClientUser *, int column = 0) const;
-		QModelIndex index(Channel *, int column = 0) const;
-		QModelIndex index(ModelItem *) const;
+	QString stringIndex(const QModelIndex &index) const;
 
-		QVariant data(const QModelIndex &index, int role) const Q_DECL_OVERRIDE;
-		Qt::ItemFlags flags(const QModelIndex &index) const Q_DECL_OVERRIDE;
-		QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const Q_DECL_OVERRIDE;
-		QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const Q_DECL_OVERRIDE;
-		QModelIndex parent(const QModelIndex &index) const Q_DECL_OVERRIDE;
-		int rowCount(const QModelIndex &parent = QModelIndex()) const Q_DECL_OVERRIDE;
-		int columnCount(const QModelIndex &parent = QModelIndex()) const Q_DECL_OVERRIDE;
-		Qt::DropActions supportedDropActions() const Q_DECL_OVERRIDE;
-		QStringList mimeTypes() const Q_DECL_OVERRIDE;
-		QMimeData *mimeData(const QModelIndexList &idx) const Q_DECL_OVERRIDE;
-		bool dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex & parent) Q_DECL_OVERRIDE;
+	/// @returns The QModelIndex that is currently selected. If there is no selection, the returned index
+	/// 	is invalid.
+	QModelIndex getSelectedIndex() const;
 
-		ClientUser *addUser(unsigned int id, const QString &name);
-		ClientUser *getUser(const QModelIndex &idx) const;
-		ClientUser *getUser(const QString &hash) const;
+	/// Removes the given user as a listener to the given channel
+	///
+	/// @param item A pointer to the listener's ModelItem that shall be removed
+	/// @param citem A pointer to the ModelItem that represents the channel the listener
+	/// 	is in. The listener has to be a direct child of this item. If this is nullptr,
+	/// 	the parent of the provided item is used directly.
+	void removeChannelListener(ModelItem *item, ModelItem *citem = nullptr);
 
-		Channel *addChannel(int id, Channel *p, const QString &name);
-		Channel *getChannel(const QModelIndex &idx) const;
+public:
+	UserModel(QObject *parent = 0);
+	~UserModel() Q_DECL_OVERRIDE;
 
-		Channel *getSubChannel(Channel *p, int idx) const;
+	QModelIndex index(ClientUser *, int column = 0) const;
+	QModelIndex index(Channel *, int column = 0) const;
+	QModelIndex index(ModelItem *) const;
+	QModelIndex channelListenerIndex(const ClientUser *, const Channel *, int column = 0) const;
 
-		void renameUser(ClientUser *p, const QString &name);
-		void renameChannel(Channel *c, const QString &name);
-		void repositionChannel(Channel *c, const int position);
-		void setUserId(ClientUser *p, int id);
-		void setHash(ClientUser *p, const QString &hash);
-		void setFriendName(ClientUser *p, const QString &name);
-		void setComment(ClientUser *p, const QString &comment);
-		void setCommentHash(ClientUser *p, const QByteArray &hash);
-		void seenComment(const QModelIndex &idx);
+	QVariant data(const QModelIndex &index, int role) const Q_DECL_OVERRIDE;
+	Qt::ItemFlags flags(const QModelIndex &index) const Q_DECL_OVERRIDE;
+	QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const Q_DECL_OVERRIDE;
+	QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const Q_DECL_OVERRIDE;
+	QModelIndex parent(const QModelIndex &index) const Q_DECL_OVERRIDE;
+	int rowCount(const QModelIndex &parent = QModelIndex()) const Q_DECL_OVERRIDE;
+	int columnCount(const QModelIndex &parent = QModelIndex()) const Q_DECL_OVERRIDE;
+	Qt::DropActions supportedDropActions() const Q_DECL_OVERRIDE;
+	QStringList mimeTypes() const Q_DECL_OVERRIDE;
+	QMimeData *mimeData(const QModelIndexList &idx) const Q_DECL_OVERRIDE;
+	bool dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column,
+					  const QModelIndex &parent) Q_DECL_OVERRIDE;
 
-		void moveUser(ClientUser *p, Channel *c);
-		void moveChannel(Channel *c, Channel *p);
-		void setComment(Channel *c, const QString &comment);
-		void setCommentHash(Channel *c, const QByteArray &hash);
+	ClientUser *addUser(unsigned int id, const QString &name);
+	ClientUser *getUser(const QModelIndex &idx) const;
+	ClientUser *getUser(const QString &hash) const;
+	/// @returns A pointer to the currently selected User or nullptr if there is none
+	ClientUser *getSelectedUser() const;
+	/// Sets the selection to the User with the given session
+	///
+	/// @param session The session ID of the respective User
+	void setSelectedUser(unsigned int session);
 
-		void removeUser(ClientUser *p);
-		void removeChannel(Channel *c);
+	Channel *addChannel(unsigned int id, Channel *p, const QString &name);
+	Channel *getChannel(const QModelIndex &idx) const;
+	/// @returns A pointer to the currently selected Channel or nullptr if there is none
+	Channel *getSelectedChannel() const;
+	/// Sets the selection to the Channel with the given ID
+	///
+	/// @param session The ID of the respective Channel
+	void setSelectedChannel(unsigned int id);
 
-		void linkChannels(Channel *c, QList<Channel *> links);
-		void unlinkChannels(Channel *c, QList<Channel *> links);
-		void unlinkAll(Channel *c);
+	/// Adds the guven user as a listener to the given channel
+	///
+	/// @param p A pointer to the user
+	/// @param c A pointer to the channel
+	void addChannelListener(ClientUser *p, Channel *c);
+	/// Removes the guven user as a listener to the given channel
+	///
+	/// @param p A pointer to the user
+	/// @param c A pointer to the channel. If this is nullptr, then all listeners
+	/// 	for the given user are removed (from all channels).
+	void removeChannelListener(const ClientUser *p, const Channel *c = nullptr);
+	/// @param idx The QModelIndex to check
+	/// @returns Whether the ModelItem associated with the given index is a listener-proxy
+	bool isChannelListener(const QModelIndex &idx) const;
 
-		void removeAll();
+	/// Sets the selection to the ChannelListener of the given user in the given channel
+	///
+	/// @param userSession The session ID of the respective User
+	/// @param channelID The ID of the respective Channel
+	void setSelectedChannelListener(unsigned int userSession, unsigned int channelID);
 
-		void expandAll(Channel *c);
-		void collapseEmpty(Channel *c);
+	Channel *getSubChannel(Channel *p, int idx) const;
 
-		QVariant otherRoles(const QModelIndex &idx, int role) const;
+	void renameUser(ClientUser *p, const QString &name);
+	void renameChannel(Channel *c, const QString &name);
+	void repositionChannel(Channel *c, const int position);
+	void setUserId(ClientUser *p, int id);
+	void setHash(ClientUser *p, const QString &hash);
+	void setFriendName(ClientUser *p, const QString &name);
+	void setComment(ClientUser *p, const QString &comment);
+	void setCommentHash(ClientUser *p, const QByteArray &hash);
+	void seenComment(const QModelIndex &idx);
 
-		unsigned int uiSessionComment;
-		int iChannelDescription;
-	public slots:
-		/// Invalidates the model data of the ClientUser triggering this slot.
-		void userStateChanged();
-		void ensureSelfVisible();
-		void recheckLinks();
-		void updateOverlay() const;
-		void toggleChannelFiltered(Channel *c);
+	void moveUser(ClientUser *p, Channel *c);
+	void moveChannel(Channel *c, Channel *p);
+	void setComment(Channel *c, const QString &comment);
+	void setCommentHash(Channel *c, const QByteArray &hash);
+
+	void removeUser(ClientUser *p);
+	bool removeChannel(Channel *c, const bool onlyIfUnoccupied = false);
+
+	void linkChannels(Channel *c, QList< Channel * > links);
+	void unlinkChannels(Channel *c, QList< Channel * > links);
+	void unlinkAll(Channel *c);
+
+	void removeAll();
+
+	void expandAll(Channel *c);
+	void collapseEmpty(Channel *c);
+
+	QVariant otherRoles(const QModelIndex &idx, int role) const;
+
+	unsigned int uiSessionComment;
+	int iChannelDescription;
+
+
+	/// Creates the display string for the given user/listener
+	///
+	/// @param user The user to create the string for
+	/// @param isChannelListener Whether the display String is in fact for a listener of the given user
+	/// @param parentChannel The channel in which the listener resides. May be nullptr, if isChannelListener is false
+	/// @return The created display string
+	static QString createDisplayString(const ClientUser &user, bool isChannelListener, const Channel *parentChannel);
+public slots:
+	/// Invalidates the model data of the ClientUser triggering this slot.
+	void userStateChanged();
+	void on_channelListenerLocalVolumeAdjustmentChanged(unsigned int channelID, float oldValue, float newValue);
+	void ensureSelfVisible();
+	void recheckLinks();
+	void updateOverlay() const;
+	void forceVisualUpdate(Channel *c = nullptr);
+signals:
+	/// A signal emitted whenever a user is added to the model.
+	///
+	/// @param userSessionID The ID of that user's session
+	void userAdded(unsigned int userSessionID);
+	/// A signal emitted whenever a user has moved to a given channel
+	///
+	/// @param userSessionID The session ID of the moved user
+	/// @param prevChannelID The ID of the channel the user is moving from (if any)
+	/// @param newChannelID The ID of the channel the user has moved into
+	void userMoved(unsigned int userSessionID, std::optional< unsigned int > prevChannelID, unsigned int newChannelID);
+	/// A signal emitted whenever a user is removed from the model.
+	///
+	/// @param userSessionID The ID of that user's session
+	void userRemoved(unsigned int userSessionID);
+	/// A signal that emitted whenever a channel is added to the model.
+	///
+	/// @param channelID The ID of the channel
+	void channelAdded(unsigned int channelID);
+	/// A signal that emitted whenever a channel is removed from the model.
+	///
+	/// @param channelID The ID of the channel
+	void channelRemoved(unsigned int channelID);
+	/// A signal that emitted whenever a channel is renamed.
+	///
+	/// @param channelID The ID of the channel
+	void channelRenamed(unsigned int channelID);
 };
 
 #endif

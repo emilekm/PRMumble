@@ -1,9 +1,7 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#include "murmur_pch.h"
 
 #include "Tray.h"
 
@@ -11,10 +9,35 @@
 #include "Meta.h"
 #include "Server.h"
 #include "Version.h"
-#include "LogEmitter.h"
 
-Tray::Tray(QObject *p, LogEmitter *logger) : QObject(p) {
-	le = logger;
+#include "Logger.h"
+
+#include <memory>
+
+#include <QtGui/QAction>
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QMainWindow>
+#include <QtWidgets/QMenu>
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QTextBrowser>
+
+#include <spdlog/sinks/dist_sink.h>
+#include <spdlog/sinks/qt_sinks.h>
+
+using namespace mumble;
+
+using QtLogSink = spdlog::sinks::qt_color_sink_st;
+
+Tray::Tray(QObject *parent) : QObject(parent), m_window(std::make_unique< QMainWindow >()) {
+	static constexpr int maxLogLines = 1000;
+	auto logBox                      = new QTextBrowser;
+	m_logSink                        = std::make_shared< QtLogSink >(logBox, maxLogLines);
+	log::addSink(m_logSink);
+
+	const auto windowTitle = QString("%1 -- %2").arg(QApplication::applicationName(), Version::getRelease());
+	m_window->resize(675, 300);
+	m_window->setCentralWidget(logBox);
+	m_window->setWindowTitle(windowTitle);
 
 	qsti = new QSystemTrayIcon(qApp->windowIcon(), this);
 	qsti->setObjectName(QLatin1String("Tray"));
@@ -33,7 +56,7 @@ Tray::Tray(QObject *p, LogEmitter *logger) : QObject(p) {
 
 	// Can't construct a QMenu which decends from QObject, and qsti is a QObject.
 	// Qt bug?
-	qm = new QMenu(tr("Murmur"), NULL);
+	qm = new QMenu(tr("Murmur"), nullptr);
 	qm->addAction(qaShowLog);
 	qm->addSeparator();
 	qm->addAction(qaAbout);
@@ -42,47 +65,34 @@ Tray::Tray(QObject *p, LogEmitter *logger) : QObject(p) {
 
 	qsti->show();
 
-	connect(le, SIGNAL(newLogEntry(const QString &)), this, SLOT(addLogMessage(const QString &)));
-
 	QMetaObject::connectSlotsByName(this);
+}
+
+Tray::~Tray() {
+	log::removeSink(std::move(m_logSink));
 }
 
 void Tray::on_Tray_activated(QSystemTrayIcon::ActivationReason r) {
 	if (r == QSystemTrayIcon::Trigger) {
-		qsti->showMessage(tr("Murmur"), tr("%1 server running.").arg(meta->qhServers.count()), QSystemTrayIcon::Information, 5000);
+		qsti->showMessage(tr("Murmur"), tr("%1 server running.").arg(meta->qhServers.count()),
+						  QSystemTrayIcon::Information, 5000);
 	}
 }
 
 void Tray::on_Quit_triggered() {
-	if (QMessageBox::question(NULL, tr("Murmur"), tr("Are you sure you want to quit Murmur?"), QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes) {
+	if (QMessageBox::question(nullptr, tr("Murmur"), tr("Are you sure you want to quit Murmur?"),
+							  QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
+		== QMessageBox::Yes) {
 		qApp->quit();
 	}
 }
 
 void Tray::on_About_triggered() {
-	AboutDialog ad(NULL);
+	AboutDialog ad(nullptr);
 	ad.exec();
 }
 
 void Tray::on_ShowLog_triggered() {
-	QMainWindow *mw = new QMainWindow();
-	mw->setAttribute(Qt::WA_DeleteOnClose);
-	QTextBrowser *tb = new QTextBrowser();
-	mw->resize(675, 300);
-	mw->setCentralWidget(tb);
-	mw->setWindowTitle(QString::fromLatin1("Murmur -- %1").arg(MUMBLE_RELEASE));
-
-	connect(le, SIGNAL(newLogEntry(const QString &)), tb, SLOT(append(const QString &)));
-
-	foreach(const QString &m, qlLog)
-		tb->append(m);
-
-	mw->show();
-}
-
-void Tray::addLogMessage(const QString &msg) {
-	if (qlLog.count() >= 1000)
-		qlLog.removeFirst();
-
-	qlLog.append(msg);
+	m_window->show();
+	m_window->activateWindow();
 }

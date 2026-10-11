@@ -1,231 +1,143 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
-
-#include "mumble_pch.hpp"
 
 #include "Audio.h"
 
 #include "AudioInput.h"
 #include "AudioOutput.h"
-#include "CELTCodec.h"
-#include "OpusCodec.h"
-#include "Global.h"
+#include "Log.h"
 #include "PacketDataStream.h"
+#include "PluginManager.h"
+#include "Global.h"
 
-class CodecInit : public DeferInit {
-	public:
-		void initialize();
-		void destroy();
-};
+#include <QtCore/QObject>
 
-#define DOUBLE_RAND (rand()/static_cast<double>(RAND_MAX))
+#include <cstring>
+
+
+#define DOUBLE_RAND (rand() / static_cast< double >(RAND_MAX))
 
 LoopUser LoopUser::lpLoopy;
-CodecInit ciInit;
-
-void CodecInit::initialize() {
-#ifdef USE_OPUS
-	OpusCodec *oCodec = new OpusCodec();
-	if (oCodec->isValid()) {
-		oCodec->report();
-		g.oCodec = oCodec;
-	} else {
-		qWarning("CodecInit: Failed to load Opus, it will not be available for encoding/decoding audio.");
-		delete oCodec;
-	}
-#endif
-
-	if (g.s.bDisableCELT) {
-		// Kill switch for CELT activated. Do not initialize it.
-		return;
-	}
-
-	CELTCodec *codec = NULL;
-
-#ifdef USE_SBCELT
-	codec = new CELTCodecSBCELT();
-	if (codec->isValid()) {
-		codec->report();
-		g.qmCodecs.insert(codec->bitstreamVersion(), codec);
-	} else {
-		delete codec;
-	}
-#else
-	codec = new CELTCodec070(QLatin1String("0.7.0"));
-	if (codec->isValid()) {
-		codec->report();
-		g.qmCodecs.insert(codec->bitstreamVersion(), codec);
-	} else {
-		delete codec;
-		codec = new CELTCodec070(QLatin1String("0.0.0"));
-		if (codec->isValid()) {
-			codec->report();
-			g.qmCodecs.insert(codec->bitstreamVersion(), codec);
-		} else {
-			delete codec;
-		}
-	}
-
-	codec = new CELTCodec011(QLatin1String("0.11.0"));
-	if (codec->isValid()) {
-		codec->report();
-		g.qmCodecs.insert(codec->bitstreamVersion(), codec);
-	} else {
-		delete codec;
-		codec = new CELTCodec011(QLatin1String("2.0.0"));
-		if (codec->isValid()) {
-			codec->report();
-			g.qmCodecs.insert(codec->bitstreamVersion(), codec);
-		} else {
-			delete codec;
-		}
-	}
-#endif
-}
-
-void CodecInit::destroy() {
-#ifdef USE_OPUS
-	delete g.oCodec;
-#endif
-
-	foreach(CELTCodec *codec, g.qmCodecs)
-		delete codec;
-	g.qmCodecs.clear();
-}
 
 LoopUser::LoopUser() {
-	qsName = QLatin1String("Loopy");
+	qsName    = QLatin1String("Loopy");
 	uiSession = 0;
-	iId = 0;
+	iId       = 0;
 	bMute = bDeaf = bSuppress = false;
 	bLocalIgnore = bLocalMute = bSelfDeaf = false;
-	tsState = Settings::Passive;
-	cChannel = NULL;
-	qtTicker.start();
-	qtLastFetch.start();
+	tsState                               = Settings::Passive;
+	cChannel                              = nullptr;
+	qetTicker.start();
+	qetLastFetch.start();
 }
 
-void LoopUser::addFrame(const QByteArray &packet) {
-	if (DOUBLE_RAND < g.s.dPacketLoss) {
+void LoopUser::addFrame(const Mumble::Protocol::AudioData &audioData) {
+	if (DOUBLE_RAND < Global::get().s.dPacketLoss) {
 		qWarning("Drop");
 		return;
 	}
 
 	{
 		QMutexLocker l(&qmLock);
-		bool restart = (qtLastFetch.elapsed() > 100);
+		bool restart = (qetLastFetch.elapsed() > 100);
 
-		double time = qtTicker.elapsed();
+		qint64 time = qetTicker.elapsed();
 
-		double r;
+		float r;
 		if (restart)
-			r = 0.0;
+			r = 0;
 		else
-			r = DOUBLE_RAND * g.s.dMaxPacketDelay;
+			r = static_cast< float >(DOUBLE_RAND * Global::get().s.dMaxPacketDelay);
 
-		qmPackets.insert(static_cast<float>(time + r), packet);
+
+		float virtualArrivalTime = static_cast< float >(time) + r;
+		// Insert default-constructed AudioPacket object and only then fill its data in-place. This is necessary to
+		// avoid any moving around of the payload vector which would mess up our pointers in the AudioData object.
+		m_packets[virtualArrivalTime] = AudioPacket{};
+		AudioPacket &packet           = m_packets[virtualArrivalTime];
+
+		// copy audio data to packet
+		packet.payload.resize(audioData.payload.size());
+		std::memcpy(packet.payload.data(), audioData.payload.data(), audioData.payload.size());
+
+		packet.audioData = audioData;
+		// The audio data is now stored in the payload vector and thus this is where we should point the used view (we
+		// don't own the original buffer and can thus not guarantee what happens with it once this function returns).
+		packet.audioData.payload = { packet.payload.data(), packet.payload.size() };
 	}
 
 	// Restart check
-	if (qtLastFetch.elapsed() > 100) {
-		AudioOutputPtr ao = g.ao;
+	if (qetLastFetch.elapsed() > 100) {
+		AudioOutputPtr ao = Global::get().ao;
 		if (ao) {
-			MessageHandler::UDPMessageType msgType = static_cast<MessageHandler::UDPMessageType>((packet.at(0) >> 5) & 0x7);
-			ao->addFrameToBuffer(this, QByteArray(), 0, msgType);
+			Mumble::Protocol::AudioData empty;
+			empty.usedCodec = audioData.usedCodec;
+			ao->addFrameToBuffer(this, empty);
 		}
 	}
-
 }
 
 void LoopUser::fetchFrames() {
 	QMutexLocker l(&qmLock);
 
-	AudioOutputPtr ao(g.ao);
-	if (!ao || qmPackets.isEmpty()) {
+	AudioOutputPtr ao(Global::get().ao);
+	if (!ao || m_packets.empty()) {
 		return;
 	}
 
-	double cmp = qtTicker.elapsed();
+	float cmp = static_cast< float >(qetTicker.elapsed());
 
-	QMultiMap<float, QByteArray>::iterator i = qmPackets.begin();
-
-	while (i != qmPackets.end()) {
-		if (i.key() > cmp)
+	auto it = m_packets.begin();
+	while (it != m_packets.end()) {
+		if (it->first > cmp) {
 			break;
+		}
 
-		int iSeq;
-		const QByteArray &data = i.value();
-		PacketDataStream pds(data.constData(), data.size());
+		ao->addFrameToBuffer(this, it->second.audioData);
 
-		unsigned int msgFlags = static_cast<unsigned int>(pds.next());
-
-		pds >> iSeq;
-
-		QByteArray qba;
-		qba.reserve(pds.left() + 1);
-		qba.append(static_cast<char>(msgFlags));
-		qba.append(pds.dataBlock(pds.left()));
-
-		MessageHandler::UDPMessageType msgType = static_cast<MessageHandler::UDPMessageType>((msgFlags >> 5) & 0x7);
-
-		ao->addFrameToBuffer(this, qba, iSeq, msgType);
-		i = qmPackets.erase(i);
+		it = m_packets.erase(it);
 	}
 
-	qtLastFetch.restart();
+	qetLastFetch.restart();
 }
 
-RecordUser::RecordUser() : LoopUser() {
+RecordUser::RecordUser() {
 	qsName = QLatin1String("Recorder");
 }
 
 RecordUser::~RecordUser() {
-	AudioOutputPtr ao = g.ao;
+	AudioOutputPtr ao = Global::get().ao;
 	if (ao)
-		ao->removeBuffer(this);
+		ao->removeUser(this);
 }
 
-void RecordUser::addFrame(const QByteArray &packet) {
-	AudioOutputPtr ao(g.ao);
+void RecordUser::addFrame(const Mumble::Protocol::AudioData &audioData) {
+	AudioOutputPtr ao(Global::get().ao);
 	if (!ao)
 		return;
 
-	int iSeq;
-	PacketDataStream pds(packet.constData(), packet.size());
-
-	unsigned int msgFlags = static_cast<unsigned int>(pds.next());
-
-	pds >> iSeq;
-
-	QByteArray qba;
-	qba.reserve(pds.left() + 1);
-	qba.append(static_cast<char>(msgFlags));
-	qba.append(pds.dataBlock(pds.left()));
-
-	MessageHandler::UDPMessageType msgType = static_cast<MessageHandler::UDPMessageType>((msgFlags >> 5) & 0x7);
-
-	ao->addFrameToBuffer(this, qba, iSeq, msgType);
+	ao->addFrameToBuffer(this, audioData);
 }
 
 void Audio::startOutput(const QString &output) {
-	g.ao = AudioOutputRegistrar::newFromChoice(output);
-	if (g.ao)
-		g.ao->start(QThread::HighPriority);
+	Global::get().ao = AudioOutputRegistrar::newFromChoice(output);
+	if (Global::get().ao)
+		Global::get().ao->start(QThread::HighPriority);
 }
 
 void Audio::stopOutput() {
 	// Take a copy of the global AudioOutput shared pointer
 	// to keep a reference around.
-	AudioOutputPtr ao = g.ao;
+	AudioOutputPtr ao = Global::get().ao;
 
 	// Reset the global AudioOutput shared pointer to the null pointer.
-	g.ao.reset();
+	Global::get().ao.reset();
 
 	// Wait until our copy of the AudioOutput shared pointer (ao)
 	// is the only one left.
-	while (ao.get() && ! ao.unique()) {
+	while (ao.get() && ao.use_count() > 1) {
 		QThread::yieldCurrentThread();
 	}
 
@@ -237,28 +149,28 @@ void Audio::stopOutput() {
 	// One such example is PulseAudioInput, whose destructor
 	// takes the PulseAudio mainloop lock. If the destructor
 	// is called inside one of the PulseAudio callbacks that
-	// take copies of g.ai, the destructor will try to also
+	// take copies of Global::get().ai, the destructor will try to also
 	// take the mainloop lock, causing an abort().
 	ao.reset();
 }
 
 void Audio::startInput(const QString &input) {
-	g.ai = AudioInputRegistrar::newFromChoice(input);
-	if (g.ai)
-		g.ai->start(QThread::HighestPriority);
+	Global::get().ai = AudioInputRegistrar::newFromChoice(input);
+	if (Global::get().ai)
+		Global::get().ai->start(QThread::HighestPriority);
 }
 
 void Audio::stopInput() {
 	// Take a copy of the global AudioInput shared pointer
 	// to keep a reference around.
-	AudioInputPtr ai = g.ai;
+	AudioInputPtr ai = Global::get().ai;
 
 	// Reset the global AudioInput shared pointer to the null pointer.
-	g.ai.reset();
+	Global::get().ai.reset();
 
 	// Wait until our copy of the AudioInput shared pointer (ai)
 	// is the only one left.
-	while (ai.get() && ! ai.unique()) {
+	while (ai.get() && ai.use_count() > 1) {
 		QThread::yieldCurrentThread();
 	}
 
@@ -270,7 +182,7 @@ void Audio::stopInput() {
 	// One such example is PulseAudioInput, whose destructor
 	// takes the PulseAudio mainloop lock. If the destructor
 	// is called inside one of the PulseAudio callbacks that
-	// take copies of g.ai, the destructor will try to also
+	// take copies of Global::get().ai, the destructor will try to also
 	// take the mainloop lock, causing an abort().
 	ai.reset();
 }
@@ -278,23 +190,33 @@ void Audio::stopInput() {
 void Audio::start(const QString &input, const QString &output) {
 	startInput(input);
 	startOutput(output);
+
+	// Now that the audio input and output is created, we connect them to the PluginManager
+	// As these callbacks might want to change the audio before it gets further processed, all these connections have to
+	// be direct
+	QObject::connect(Global::get().ai.get(), &AudioInput::audioInputEncountered, Global::get().pluginManager,
+					 &PluginManager::on_audioInput, Qt::DirectConnection);
+	QObject::connect(Global::get().ao.get(), &AudioOutput::audioSourceFetched, Global::get().pluginManager,
+					 &PluginManager::on_audioSourceFetched, Qt::DirectConnection);
+	QObject::connect(Global::get().ao.get(), &AudioOutput::audioOutputAboutToPlay, Global::get().pluginManager,
+					 &PluginManager::on_audioOutputAboutToPlay, Qt::DirectConnection);
 }
 
 void Audio::stop() {
 	// Take copies of the global AudioInput and AudioOutput
 	// shared pointers to keep a reference to each of them
 	// around.
-	AudioInputPtr ai = g.ai;
-	AudioOutputPtr ao = g.ao;
+	AudioInputPtr ai  = Global::get().ai;
+	AudioOutputPtr ao = Global::get().ao;
 
 	// Reset the global AudioInput and AudioOutput shared pointers
 	// to the null pointer.
-	g.ao.reset();
-	g.ai.reset();
+	Global::get().ao.reset();
+	Global::get().ai.reset();
 
 	// Wait until our copies of the AudioInput and AudioOutput shared pointers
 	// (ai and ao) are the only ones left.
-	while ((ai.get() && ! ai.unique()) || (ao.get() && ! ao.unique())) {
+	while ((ai.get() && ai.use_count() > 1) || (ao.get() && ao.use_count() > 1)) {
 		QThread::yieldCurrentThread();
 	}
 
@@ -307,8 +229,10 @@ void Audio::stop() {
 	// One such example is PulseAudioInput, whose destructor
 	// takes the PulseAudio mainloop lock. If the destructor
 	// is called inside one of the PulseAudio callbacks that
-	// take copies of g.ai, the destructor will try to also
+	// take copies of Global::get().ai, the destructor will try to also
 	// take the mainloop lock, causing an abort().
 	ai.reset();
 	ao.reset();
 }
+
+#undef DOUBLE_RAND

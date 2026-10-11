@@ -1,4 +1,4 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
@@ -25,18 +25,18 @@ OverlayExclusionMode SettingsGetExclusionMode();
 
 /// Get the list of launcher programs to consider when
 /// checking the overlay exclusion rules.
-std::vector<std::string> SettingsGetLaunchers();
+std::vector< std::string > SettingsGetLaunchers();
 
 /// Get the list of whitelisted programs to consider when
 /// checking the overlay exclusion rules.
-std::vector<std::string> SettingsGetWhitelist();
+std::vector< std::string > SettingsGetWhitelist();
 
 /// Get the list of whitelisted paths to consider when
 /// checking the overlay exclusion rules.
-std::vector<std::string> SettingsGetPaths();
+std::vector< std::string > SettingsGetPaths();
 
 /// Get the list of blacklisted programs to consider when
 /// checking the overlay exclusion rules.
-std::vector<std::string> SettingsGetBlacklist();
+std::vector< std::string > SettingsGetBlacklist();
 
 #endif

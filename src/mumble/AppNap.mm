@@ -1,21 +1,15 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "mumble_pch.hpp"
+#include "MumbleApplication.h"
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+#include <Foundation/Foundation.h>
+
 static bool appNapSuppressed = false;
-#endif
 
 void MUSuppressAppNap(bool suppress) {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
-	NSProcessInfo *processInfo = [NSProcessInfo processInfo];
-	if (![processInfo respondsToSelector:@selector(disableAutomaticTermination:)]) {
-		return;
-	}
-
 	if (suppress == appNapSuppressed) {
 		qWarning("AppNap: attempt to set AppNap suppression state to %s while already in that state.", suppress ? "true" : "false");
 		return;
@@ -35,7 +29,4 @@ void MUSuppressAppNap(bool suppress) {
 	appNapSuppressed = suppress;
 
 	[reason release];
-#else
-	Q_UNUSED(suppress);
-#endif
 }

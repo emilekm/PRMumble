@@ -15,6 +15,7 @@
 #include "User.h"
 #include "widgets/EventFilters.h"
 
+#include <QStyledItemDelegate>
 #include <QtWidgets/QMessageBox>
 
 #include "Global.h"
@@ -76,19 +77,19 @@ ACLEditor::ACLEditor(unsigned int channelid, const MumbleProto::ACL &mea, QWidge
 
 	setupUi(this);
 	
-	QStyledItemDelegate* itemDelegate1 = new QStyledItemDelegate();
+	QStyledItemDelegate* itemDelegate1 = new QStyledItemDelegate(this);
 	qcbGroupList->setItemDelegate(itemDelegate1);
 	
-	QStyledItemDelegate* itemDelegate2 = new QStyledItemDelegate();
+	QStyledItemDelegate* itemDelegate2 = new QStyledItemDelegate(this);
 	qcbGroupAdd->setItemDelegate(itemDelegate2);
 	
-	QStyledItemDelegate* itemDelegate3 = new QStyledItemDelegate();
+	QStyledItemDelegate* itemDelegate3 = new QStyledItemDelegate(this);
 	qcbGroupRemove->setItemDelegate(itemDelegate3);
 	
-	QStyledItemDelegate* itemDelegate4 = new QStyledItemDelegate();
+	QStyledItemDelegate* itemDelegate4 = new QStyledItemDelegate(this);
 	qcbACLGroup->setItemDelegate(itemDelegate4);
 	
-	QStyledItemDelegate* itemDelegate5 = new QStyledItemDelegate();
+	QStyledItemDelegate* itemDelegate5 = new QStyledItemDelegate(this);
 	qcbACLUser->setItemDelegate(itemDelegate5);
 
 	qcbChannelTemporary->hide();

@@ -8,6 +8,7 @@
 #include "MainWindow.h"
 #include "Utils.h"
 
+#include <QStyledItemDelegate>
 #include <QtWidgets/QMessageBox>
 
 #include <cmath>
@@ -190,7 +191,7 @@ ASIOConfig::ASIOConfig(Settings &st) : ConfigWidget(st) {
 		qpbConfig->setEnabled(false);
 	}
 	
-	QStyledItemDelegate* itemDelegate1 = new QStyledItemDelegate();
+	QStyledItemDelegate* itemDelegate1 = new QStyledItemDelegate(this);
 	qcbDevice->setItemDelegate(itemDelegate1);
 }
 

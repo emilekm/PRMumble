@@ -78,10 +78,10 @@ void RealityData::update()
 				continue;
 			
 			if (!identity.isEmpty()) {
-				int nameIndex = identity.indexOf(QLatin1String("\"name\":\""), 0, Qt::CaseInsensitive);
+				qsizetype nameIndex = identity.indexOf(QLatin1String("\"name\":\""), 0, Qt::CaseInsensitive);
 				if (nameIndex >= 0) {
 					nameIndex += 8;
-					int nameFinishIndex = identity.indexOf(QLatin1String("\""), nameIndex + 1);
+					qsizetype nameFinishIndex = identity.indexOf(QLatin1String("\""), nameIndex + 1);
 					if (nameFinishIndex >= 0 && nameIndex < nameFinishIndex && nameIndex < identity.length() && nameFinishIndex < identity.length()) {
 						QString tempName = identity.mid(nameIndex, nameFinishIndex - nameIndex);
 						if (!tempName.isEmpty())
@@ -116,7 +116,7 @@ void RealityData::setData(QByteArray data)
 	try {
 		if (smMem) {
 			smMem->erase();
-			smMem->setData(reinterpret_cast< const unsigned char * >(data.constData()), data.size() >= 32768 ? 32767 : data.size());
+			smMem->setData(reinterpret_cast< const unsigned char * >(data.constData()), static_cast< size_t >(data.size() >= 32768 ? 32767 : data.size()));
 		}
 	} catch (...) {
 	}

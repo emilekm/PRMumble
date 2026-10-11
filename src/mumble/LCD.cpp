@@ -34,7 +34,7 @@ LCDEngineRegistrar::~LCDEngineRegistrar() {
 	}
 }
 
-static ConfigWidget *LCDConfigDialogNew(Settings &st) {
+[[maybe_unused]] static ConfigWidget *LCDConfigDialogNew(Settings &st) {
 	return new LCDConfig(st);
 }
 

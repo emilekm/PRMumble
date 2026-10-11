@@ -821,7 +821,7 @@ void MainWindow::msgUserState(const MumbleProto::UserState &msg) {
 		pDst->qsIdentity = u8(msg.plugin_identity());
 	}
 	
-	if (msg.position_size()) {
+	if (msg.position_size() >= 3) {
 		pDst->setPosition(msg.position(0), msg.position(1), msg.position(2));
 	}
 }

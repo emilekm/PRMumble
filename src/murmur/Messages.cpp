@@ -985,6 +985,7 @@ void Server::msgUserState(ServerUser *uSource, MumbleProto::UserState &msg) {
 			|| msg.has_recording() || msg.listening_channel_add_size() > 0
 			|| msg.listening_channel_remove_size() > 0 || msg.position_size() > 0)) {
 		return;
+	}
 
 	/*
 		-------------------- Permission checks done. Now act --------------------
@@ -1036,9 +1037,11 @@ void Server::msgUserState(ServerUser *uSource, MumbleProto::UserState &msg) {
 		}
 	}
 
-	// PRMumble relays in-game positions and plugin identities to all clients.
-	if (msg.position_size()) {
+	// PRMumble relays in-game positions (x, y, z) and plugin identities to all clients.
+	if (msg.position_size() == 3) {
 		bBroadcast = true;
+	} else if (msg.position_size() > 0) {
+		msg.clear_position();
 	}
 
 	if (msg.has_plugin_identity()) {

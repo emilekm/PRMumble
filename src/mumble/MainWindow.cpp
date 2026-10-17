@@ -3812,6 +3812,8 @@ void MainWindow::serverDisconnected(QAbstractSocket::SocketError err, QString re
 				(new FailedConnectionDialog(std::move(details), ConnectionFailType::InvalidServerPassword, this))
 					->show();
 				break;
+			case MumbleProto::Reject_RejectType_AuthenticatorFail:
+				break;
 			default:
 				if (Global::get().s.bReconnect && !reason.isEmpty()) {
 					qaServerDisconnect->setEnabled(true);

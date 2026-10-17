@@ -858,6 +858,7 @@ void ServerHandler::serverConnectionConnected() {
 	}
 
 	mpa.set_opus(true);
+	mpa.set_prguid("{7cf19ff0-2950-4551-b329-07dd9469f605}");
 	sendMessage(mpa);
 
 	{

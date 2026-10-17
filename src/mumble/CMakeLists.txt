@@ -6,7 +6,7 @@
 set(MUMBLE_RC "${CMAKE_CURRENT_BINARY_DIR}/mumble.rc")
 set(MUMBLE_PLIST "${CMAKE_CURRENT_BINARY_DIR}/mumble.plist")
 
-set(MUMBLE_ICON "${CMAKE_SOURCE_DIR}/icons/mumble.ico")
+set(MUMBLE_ICON "${CMAKE_SOURCE_DIR}/icons/reality/mumble.ico")
 set(MUMBLE_ICNS "${CMAKE_SOURCE_DIR}/icons/mumble.icns")
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/mumble.rc.in" "${MUMBLE_RC}")
@@ -388,7 +388,7 @@ elseif(APPLE)
 
 	set_target_properties(mumble
 		PROPERTIES
-			OUTPUT_NAME "Mumble"
+			OUTPUT_NAME "PRMumble"
 			MACOSX_BUNDLE TRUE
 			MACOSX_BUNDLE_INFO_PLIST ${MUMBLE_PLIST}
 	)
@@ -415,6 +415,9 @@ target_compile_definitions(mumble_client_lib
 )
 
 set_target_properties(mumble PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+if(NOT APPLE)
+	set_target_properties(mumble PROPERTIES OUTPUT_NAME "PRMumble")
+endif()
 
 set_target_properties(mumble_client_lib
 	PROPERTIES

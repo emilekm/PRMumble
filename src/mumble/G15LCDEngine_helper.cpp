@@ -18,10 +18,10 @@ G15LCDEngineHelper::G15LCDEngineHelper() : LCDEngine() {
 	bUnavailable = true;
 
 #if defined(Q_OS_WIN)
-	qsHelperExecutable = QString::fromLatin1("\"%1/mumble-g15-helper.exe\"")
+	qsHelperExecutable = QString::fromLatin1("\"%1/PRMumble-g15-helper.exe\"")
 							 .arg(MumbleApplication::instance()->applicationVersionRootPath());
 #elif defined(Q_OS_MAC)
-	qsHelperExecutable = QString::fromLatin1("\"%1/mumble-g15-helper\"")
+	qsHelperExecutable = QString::fromLatin1("\"%1/PRMumble-g15-helper\"")
 							 .arg(MumbleApplication::instance()->applicationVersionRootPath());
 #endif
 

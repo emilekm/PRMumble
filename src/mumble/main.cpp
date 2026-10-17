@@ -254,7 +254,7 @@ const std::set< std::string > CLIOptions::knownRpcCommands = {
 CLIOptions parseCLI(int argc, char **argv) {
 	CLIOptions options;
 
-	CLI::App app("Mumble Client");
+	CLI::App app("Project Reality Mumble Client");
 	app.set_version_flag("--version", Version::getRelease().toStdString());
 	app.add_flag("--license", options.showLicense, "Show the Mumble license.")->group(CLIOptions::CLI_ABOUT_SECTION);
 	app.add_flag("--authors", options.showAuthors, "Show the Mumble authors.")->group(CLIOptions::CLI_ABOUT_SECTION);
@@ -302,7 +302,7 @@ CLIOptions parseCLI(int argc, char **argv) {
 
 
 
-	app.add_flag("-z,--minimize,--hidden", options.startHiddenInTray, "Start Mumble hidden in the system tray.")
+	app.add_flag("-z,--minimize,--hidden", options.startHiddenInTray, "Start PR Mumble hidden in the system tray.")
 		->group(CLIOptions::CLI_GENERAL_SECTION);
 
 	app.add_option("--locale", options.locale,
@@ -825,7 +825,7 @@ int main(int argc, char **argv) {
 
 	SocketRPC *srpc = new SocketRPC(QLatin1String("PRMumble"));
 
-	Global::get().l->log(Log::Information, MainWindow::tr("Welcome to Mumble."));
+	Global::get().l->log(Log::Information, MainWindow::tr("Welcome to Project Reality Mumble."));
 
 	Audio::start();
 

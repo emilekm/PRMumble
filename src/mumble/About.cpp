@@ -82,10 +82,12 @@ AboutDialog::AboutDialog(QWidget *p) : QDialog(p) {
 
 	QString aboutText = QString();
 	aboutText +=
-		QString("<h3>Mumble (%1 %2)</h3>").arg(Version::getRelease()).arg(QString::fromUtf8(MUMBLE_TARGET_ARCH));
+		QString("<h3>Project Reality Mumble (%1 %2)</h3>").arg(Version::getRelease()).arg(QString::fromUtf8(MUMBLE_TARGET_ARCH));
+	aboutText += QString("<p>Copyright Project Reality<br /><tt><a href=\"%1\">%1</a></tt></p>")
+					 .arg(QLatin1String("https://www.realitymod.com/"));
 	aboutText += QString("<p>%1</p>").arg(copyrightText);
 	aboutText +=
-		QString("<p><b>") + tr("An Open Source, low-latency, high quality voice-chat utility") + QString("</b></p>");
+		QString("<p><b>") + tr("A voice-chat utility for gamers, customized for Project Reality") + QString("</b></p>");
 	aboutText += QString("<p><tt><a href=\"%1\">%1</a></tt></p>").arg(QLatin1String("https://www.mumble.info/"));
 	text->setText(aboutText);
 
@@ -93,7 +95,7 @@ AboutDialog::AboutDialog(QWidget *p) : QDialog(p) {
 	qhbl->addWidget(icon);
 	qhbl->addWidget(text);
 
-	qtwTab->addTab(about, tr("&About Mumble"));
+	qtwTab->addTab(about, tr("&About PR Mumble"));
 	qtwTab->addTab(qteLicense, tr("&License"));
 	qtwTab->addTab(authors, tr("A&uthors"));
 	qtwTab->addTab(qtb3rdPartyLicense, tr("&Third-Party Licenses"));

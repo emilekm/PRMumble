@@ -15,7 +15,7 @@
 TrayIcon::TrayIcon() : QSystemTrayIcon(Global::get().mw), m_statusIcon(Global::get().mw->qiIcon) {
 	setIcon(m_statusIcon);
 
-	setToolTip("Mumble");
+	setToolTip("Project Reality Mumble");
 
 	assert(Global::get().mw);
 	assert(Global::get().l);

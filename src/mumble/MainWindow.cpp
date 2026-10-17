@@ -646,9 +646,9 @@ void MainWindow::setupGui() {
 void MainWindow::updateWindowTitle() {
 	QString title;
 	if (Global::get().s.bMinimalView) {
-		title = tr("Mumble - Minimal View");
+		title = tr("Project Reality Mumble - Minimal View");
 	} else {
-		title = tr("Mumble");
+		title = tr("Project Reality Mumble");
 	}
 
 	if (!Global::get().windowTitlePostfix.isEmpty()) {
@@ -722,7 +722,7 @@ void MainWindow::closeEvent(QCloseEvent *e) {
 	const bool minimizeDueToConnected = sh && sh->isRunning() && quitBehavior == QuitBehavior::MINIMIZE_WHEN_CONNECTED;
 
 	if (!forceQuit && (alwaysAsk || askDueToConnected)) {
-		QMessageBox mb(QMessageBox::Warning, QLatin1String("Mumble"),
+		QMessageBox mb(QMessageBox::Warning, QLatin1String("PRMumble"),
 					   tr("Are you sure you want to close Mumble? Perhaps you prefer to minimize it instead?"),
 					   QMessageBox::NoButton, this);
 		QCheckBox *qcbRemember   = new QCheckBox(tr("Remember this setting"));
@@ -2204,7 +2204,7 @@ void MainWindow::on_qaUserCommentReset_triggered() {
 	unsigned int session = p->uiSession;
 
 	int ret = QMessageBox::question(
-		this, QLatin1String("Mumble"),
+		this, QLatin1String("PRMumble"),
 		tr("Are you sure you want to reset the comment of user %1?").arg(p->qsName.toHtmlEscaped()), QMessageBox::Yes,
 		QMessageBox::No);
 	if (ret == QMessageBox::Yes) {
@@ -2221,7 +2221,7 @@ void MainWindow::on_qaUserTextureReset_triggered() {
 	unsigned int session = p->uiSession;
 
 	int ret = QMessageBox::question(
-		this, QLatin1String("Mumble"),
+		this, QLatin1String("PRMumble"),
 		tr("Are you sure you want to reset the avatar of user %1?").arg(p->qsName.toHtmlEscaped()), QMessageBox::Yes,
 		QMessageBox::No);
 	if (ret == QMessageBox::Yes) {
@@ -2541,7 +2541,7 @@ void MainWindow::on_qaChannelRemove_triggered() {
 	unsigned int id = c->iId;
 
 	ret = QMessageBox::question(
-		this, QLatin1String("Mumble"),
+		this, QLatin1String("PRMumble"),
 		tr("Are you sure you want to delete %1 and all its sub-channels?").arg(c->qsName.toHtmlEscaped()),
 		QMessageBox::Yes, QMessageBox::No);
 
@@ -4346,7 +4346,7 @@ void MainWindow::on_muteCuePopup_triggered() {
 
 	Global::get().s.muteCueShown = true;
 	QMessageBox mb(
-		QMessageBox::Warning, QLatin1String("Mumble"),
+		QMessageBox::Warning, QLatin1String("PRMumble"),
 		tr("That sound was the mute cue. It activates when you speak while muted. Would you like to keep it enabled?"),
 		QMessageBox::NoButton, this);
 	QPushButton *accept = mb.addButton(tr("Yes"), QMessageBox::YesRole);

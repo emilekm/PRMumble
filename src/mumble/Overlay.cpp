@@ -252,7 +252,7 @@ void Overlay::createPipe() {
 #endif
 
 	if (!qlsServer->listen(pipepath)) {
-		QMessageBox::warning(nullptr, QLatin1String("Mumble"),
+		QMessageBox::warning(nullptr, QLatin1String("PRMumble"),
 							 tr("Failed to create communication with overlay at %2: %1. No overlay will be available.")
 								 .arg(qlsServer->errorString().toHtmlEscaped(), pipepath.toHtmlEscaped()),
 							 QMessageBox::Ok, QMessageBox::NoButton);

@@ -1,4 +1,4 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
@@ -7,7 +7,6 @@
 #include <QtTest>
 
 #include "SSL.h"
-#include "QAtomicIntCompat.h"
 
 #include <openssl/rand.h>
 
@@ -23,15 +22,12 @@ public:
 	bool m_seed;
 	QAtomicInt *m_running;
 
-	SSLRacer(QAtomicInt *running, bool seed)
-		: m_seed(seed)
-		, m_running(running) {
-	}
+	SSLRacer(QAtomicInt *running, bool seed) : m_seed(seed), m_running(running) {}
 
 	void run() {
 		unsigned char buf[64];
-		while (QAtomicIntLoad(*m_running) == 1) {
-			for (int i = 0; i < 1024; i++) {
+		while (m_running->loadRelaxed() == 1) {
+			for (int i = 0; i < 64; i++) {
 				if (m_seed) {
 					RAND_seed(buf, sizeof(buf));
 				} else {
@@ -43,11 +39,11 @@ public:
 };
 
 class TestSSLLocks : public QObject {
-		Q_OBJECT
-	private slots:
-		void initTestCase();
-		void cleanupTestCase();
-		void stress();
+	Q_OBJECT
+private slots:
+	void initTestCase();
+	void cleanupTestCase();
+	void stress();
 };
 
 void TestSSLLocks::initTestCase() {
@@ -72,7 +68,7 @@ void TestSSLLocks::cleanupTestCase() {
 /// The idea is that without proper locking, the data races we're causing
 /// should quite quickly cause the process to crash.
 void TestSSLLocks::stress() {
-	std::vector<SSLRacer *> racers;
+	std::vector< SSLRacer * > racers;
 	QAtomicInt running(1);
 
 	// Spawn 24 threads in total. 12 readers, and 12 writers.
@@ -80,7 +76,7 @@ void TestSSLLocks::stress() {
 	// pass or crash, so the threads will be cleaned up either way.
 	int nthreads = 24;
 	for (int i = 0; i < nthreads; i++) {
-		bool seeder = i % 2;
+		bool seeder     = i % 2;
 		SSLRacer *racer = new SSLRacer(&running, seeder);
 		racers.push_back(racer);
 		racer->start();

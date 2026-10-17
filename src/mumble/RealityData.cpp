@@ -1,9 +1,7 @@
-#include "mumble_pch.hpp"
-
 #include "RealityData.h"
 
-#include "ClientUser.h"
 #include "Channel.h"
+#include "ClientUser.h"
 #include "Global.h"
 #include "Settings.h"
 
@@ -38,7 +36,7 @@ void RealityData::update()
 		return;
 	
 	try {
-		ClientUser *self = ClientUser::get(g.uiSession);
+		ClientUser *self = ClientUser::get(Global::get().uiSession);
 		
 		if (!self) {
 			if (smMem)
@@ -50,11 +48,11 @@ void RealityData::update()
 		
 		QList<ClientUser *> users;
 		
-		foreach(Channel *c, home->allLinks())
-			foreach(User *p, c->qlUsers)
-				users << static_cast<ClientUser *>(p);
+		for (Channel *c : home->allLinks())
+			for (User *p : c->qlUsers)
+				users << static_cast< ClientUser * >(p);
 		
-		foreach(ClientUser *cu, ClientUser::getTalking())
+		for (ClientUser *cu : ClientUser::getTalking())
 			if (!users.contains(cu))
 				users << cu;
 		
@@ -65,7 +63,7 @@ void RealityData::update()
 		}
 		
 		QStringList talking;
-		foreach(ClientUser *cu, users) {
+		for (ClientUser *cu : users) {
 			if (!cu || !cu->cChannel)
 				continue;
 			
@@ -80,10 +78,10 @@ void RealityData::update()
 				continue;
 			
 			if (!identity.isEmpty()) {
-				int nameIndex = identity.indexOf(QLatin1String("\"name\":\""), 0, Qt::CaseInsensitive);
+				qsizetype nameIndex = identity.indexOf(QLatin1String("\"name\":\""), 0, Qt::CaseInsensitive);
 				if (nameIndex >= 0) {
 					nameIndex += 8;
-					int nameFinishIndex = identity.indexOf(QLatin1String("\""), nameIndex + 1);
+					qsizetype nameFinishIndex = identity.indexOf(QLatin1String("\""), nameIndex + 1);
 					if (nameFinishIndex >= 0 && nameIndex < nameFinishIndex && nameIndex < identity.length() && nameFinishIndex < identity.length()) {
 						QString tempName = identity.mid(nameIndex, nameFinishIndex - nameIndex);
 						if (!tempName.isEmpty())
@@ -118,7 +116,7 @@ void RealityData::setData(QByteArray data)
 	try {
 		if (smMem) {
 			smMem->erase();
-			smMem->setData((unsigned char*)data.data(), data.size() >= 32768 ? 32767 : data.size());
+			smMem->setData(reinterpret_cast< const unsigned char * >(data.constData()), static_cast< size_t >(data.size() >= 32768 ? 32767 : data.size()));
 		}
 	} catch (...) {
 	}

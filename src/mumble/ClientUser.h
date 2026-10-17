@@ -1,4 +1,4 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
@@ -6,80 +6,99 @@
 #ifndef MUMBLE_MUMBLE_CLIENTUSER_H_
 #define MUMBLE_MUMBLE_CLIENTUSER_H_
 
+#include <QtCore/QHash>
 #include <QtCore/QReadWriteLock>
 
-#include "User.h"
-#include "Timer.h"
 #include "Settings.h"
+#include "Timer.h"
+#include "User.h"
 
 class ClientUser : public QObject, public User {
-	private:
-		Q_OBJECT
-		Q_DISABLE_COPY(ClientUser)
-	public:
-		Settings::TalkState tsState;
-		Timer tLastTalkStateChange;
-		bool bLocalIgnore;
-		bool bLocalMute;
-		float fPosition[3];
-		QString qsIdentity;
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(ClientUser)
 
-		float fPowerMin, fPowerMax;
-		float fAverageAvailable;
-		float fLocalVolume;
+protected:
+	float m_localVolume = 1.0f;
+	QString m_localNickname;
 
-		int iFrames;
-		int iSequence;
+public:
+	Settings::TalkState tsState;
+	Timer tLastTalkStateChange;
+	bool bLocalIgnore;
+	bool bLocalIgnoreTTS;
+	bool bLocalMute;
+	// Whether or not the user's effective output is inaudible due to volume settings, positional audio etc.
+	bool volumeMute;
+	// Project Reality: in-game position and plugin identity relayed by the server.
+	float fPosition[3] = { 0.0f, 0.0f, 0.0f };
+	QString qsIdentity;
 
-		QByteArray qbaTextureFormat;
-		QString qsFriendName;
+	float fPowerMin, fPowerMax;
+	float fAverageAvailable;
 
-		QString getFlagsString() const;
-		ClientUser(QObject *p = NULL);
+	int iFrames;
+	int iSequence;
 
-		/**
-		 * Determines whether a user is active or not
-		 * A user is active when it is currently speaking or when the user has
-		 * spoken within Settings::uiActiveTime amount of seconds.
-		 */
-		bool isActive();
+	QByteArray qbaTextureFormat;
+	QString qsFriendName;
 
-		static QHash<unsigned int, ClientUser *> c_qmUsers;
-		static QReadWriteLock c_qrwlUsers;
+	QString getFlagsString() const;
+	ClientUser(QObject *p = nullptr);
 
-		static QList<ClientUser *> c_qlTalking;
-		static QReadWriteLock c_qrwlTalking;
-		static QList<ClientUser *> getTalking();
-		static QList<ClientUser *> getActive();
+	float getLocalVolumeAdjustments() const;
 
-		static void sortUsersOverlay(QList<ClientUser *> &list);
+	QString getLocalNickname() const;
 
-		static ClientUser *get(unsigned int);
-		static bool isValid(unsigned int);
-		static ClientUser *add(unsigned int, QObject *p = NULL);
-		static ClientUser *match(const ClientUser *p, bool matchname = false);
-		static void remove(unsigned int);
-		static void remove(ClientUser *);
-	protected:
-		static bool lessThanOverlay(const ClientUser *, const ClientUser *);
-	public slots:
-		void setTalking(Settings::TalkState ts);
-		void setMute(bool mute);
-		void setDeaf(bool deaf);
-		void setSuppress(bool suppress);
-		void setLocalIgnore(bool ignore);
-		void setLocalMute(bool mute);
-		void setSelfMute(bool mute);
-		void setSelfDeaf(bool deaf);
-		void setPrioritySpeaker(bool priority);
-		void setRecording(bool recording);
-		void setPosition(float x, float y, float z);
-	signals:
-		void positionChanged();
-		void talkingStateChanged();
-		void muteDeafStateChanged();
-		void prioritySpeakerStateChanged();
-		void recordingStateChanged();
+	/**
+	 * Determines whether a user is active or not
+	 * A user is active when it is currently speaking or when the user has
+	 * spoken within Settings::uiActiveTime amount of seconds.
+	 */
+	bool isActive();
+
+	static QHash< unsigned int, ClientUser * > c_qmUsers;
+	static QReadWriteLock c_qrwlUsers;
+
+	static QList< ClientUser * > c_qlTalking;
+	static QReadWriteLock c_qrwlTalking;
+	static QList< ClientUser * > getTalking();
+	static QList< ClientUser * > getActive();
+
+	static void sortUsersOverlay(QList< ClientUser * > &list);
+
+	static ClientUser *get(unsigned int);
+	static bool isValid(unsigned int);
+	static ClientUser *add(unsigned int, QObject *p = nullptr);
+	static ClientUser *match(const ClientUser *p, bool matchname = false);
+	static void remove(unsigned int);
+	static void remove(ClientUser *);
+
+protected:
+	static bool lessThanOverlay(const ClientUser *, const ClientUser *);
+public slots:
+	void setTalking(Settings::TalkState ts);
+	void setMute(bool mute);
+	void setDeaf(bool deaf);
+	void setSuppress(bool suppress);
+	void setLocalIgnore(bool ignore);
+	void setLocalIgnoreTTS(bool ignoreTTS);
+	void setLocalMute(bool mute);
+	void setSelfMute(bool mute);
+	void setSelfDeaf(bool deaf);
+	void setPrioritySpeaker(bool priority);
+	void setRecording(bool recording);
+	void setLocalVolumeAdjustment(float adjustment);
+	void setLocalNickname(const QString &nickname);
+	void setPosition(float x, float y, float z);
+signals:
+	void positionChanged();
+	void talkingStateChanged();
+	void muteDeafStateChanged();
+	void prioritySpeakerStateChanged();
+	void recordingStateChanged();
+	void localVolumeAdjustmentsChanged(float newAdjustment, float oldAdjustment);
+	void localNicknameChanged();
 };
 
 #endif

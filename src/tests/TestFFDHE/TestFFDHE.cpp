@@ -1,4 +1,4 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
@@ -7,22 +7,22 @@
 #include <QtTest>
 
 #if defined(USE_QSSLDIFFIEHELLMANPARAMETERS)
-# include <QtNetwork/QSslDiffieHellmanParameters>
+#	include <QtNetwork/QSslDiffieHellmanParameters>
 #endif
 
-#include "SSL.h"
 #include "FFDHE.h"
+#include "SSL.h"
 
 class TestFFDHE : public QObject {
-		Q_OBJECT
-	private slots:
-		void initTestCase();
-		void cleanupTestCase();
+	Q_OBJECT
+private slots:
+	void initTestCase();
+	void cleanupTestCase();
 
 #if defined(USE_QSSLDIFFIEHELLMANPARAMETERS)
-		void exercise_data();
-		void exercise();
-		void namedGroupsMethod();
+	void exercise_data();
+	void exercise();
+	void namedGroupsMethod();
 #endif
 };
 
@@ -36,8 +36,8 @@ void TestFFDHE::cleanupTestCase() {
 
 #if defined(USE_QSSLDIFFIEHELLMANPARAMETERS)
 void TestFFDHE::exercise_data() {
-	QTest::addColumn<QString>("name");
-	QTest::addColumn<bool>("expectedToWork");
+	QTest::addColumn< QString >("name");
+	QTest::addColumn< bool >("expectedToWork");
 
 	QTest::newRow("ffdhe2048") << QString(QLatin1String("ffdhe2048")) << true;
 	QTest::newRow("ffdhe3072") << QString(QLatin1String("ffdhe3072")) << true;
@@ -61,7 +61,7 @@ static bool tryFFDHELookupByName(QString name) {
 	}
 	if (ok) {
 		QSslDiffieHellmanParameters dh = QSslDiffieHellmanParameters::fromEncoded(pem, QSsl::Pem);
-		ok = dh.isValid();
+		ok                             = dh.isValid();
 		if (!ok) {
 			qWarning("QSslDiffieHellman error: %s", qPrintable(dh.errorString()));
 		}
@@ -77,7 +77,7 @@ void TestFFDHE::exercise() {
 }
 
 void TestFFDHE::namedGroupsMethod() {
-	foreach (QString name, FFDHE::NamedGroups()) {
+	for (const QString &name : FFDHE::NamedGroups()) {
 		QCOMPARE(tryFFDHELookupByName(name), true);
 	}
 }

@@ -1,11 +1,12 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "mumble_pch.hpp"
-
 #include "SharedMemory.h"
+
+#include <algorithm>
+#include <cstring>
 
 unsigned int SharedMemory2::uiIndex = 0;
 
@@ -17,9 +18,9 @@ unsigned int SharedMemory2::size() const {
 	return a_ucData ? uiSize : 0;
 }
 
-void SharedMemory2::setData(unsigned char* data, size_t length) {
+void SharedMemory2::setData(const unsigned char *data, size_t length) {
 	if (a_ucData)
-		memcpy(a_ucData, data, length);
+		memcpy(a_ucData, data, std::min< size_t >(length, uiSize));
 }
 
 unsigned char *SharedMemory2::data() {

@@ -1,4 +1,4 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
@@ -6,26 +6,32 @@
 #ifndef MUMBLE_MURMUR_SERVERUSER_H_
 #define MUMBLE_MURMUR_SERVERUSER_H_
 
-#include <QtCore/QStringList>
-#include <QtCore/QTime>
+#include <QtCore/QtGlobal>
 
-#ifdef Q_OS_UNIX
-#include <sys/socket.h>
-#else
-#include <winsock2.h>
+#ifdef Q_OS_WIN
+#	include "win.h"
 #endif
 
-// <chrono> was introduced in C++11
-#if __cplusplus > 199711LL
-#include <chrono>
-#else
-#include <ctime>
-#endif
-
+#include "ClientType.h"
 #include "Connection.h"
-#include "Timer.h"
-#include "User.h"
 #include "HostAddress.h"
+#include "MumbleProtocol.h"
+#include "ServerUserInfo.h"
+#include "Timer.h"
+
+#include <QtCore/QElapsedTimer>
+#include <QtCore/QStringList>
+
+#ifdef Q_OS_WIN
+#	include <winsock2.h>
+#else
+#	include <sys/socket.h>
+#endif
+
+#include <atomic>
+#include <memory>
+#include <mutex>
+#include <vector>
 
 // Unfortunately, this needs to be "large enough" to hold
 // enough frames to account for both short-term and
@@ -40,7 +46,7 @@ struct BandwidthRecord {
 	Timer tIdleControl;
 	unsigned short a_iBW[N_BANDWIDTH_SLOTS];
 	Timer a_qtWhen[N_BANDWIDTH_SLOTS];
-	mutable QMutex qmMutex;
+	mutable std::mutex qmMutex;
 
 	BandwidthRecord();
 	bool addFrame(int size, int maxpersec);
@@ -52,92 +58,127 @@ struct BandwidthRecord {
 
 struct WhisperTarget {
 	struct Channel {
-		int iId;
-		bool bChildren;
-		bool bLinks;
-		QString qsGroup;
+		unsigned int id;
+		bool includeChildren;
+		bool includeLinks;
+		QString targetGroup;
 	};
-	QList<unsigned int> qlSessions;
-	QList<WhisperTarget::Channel> qlChannels;
+
+	std::vector< unsigned int > sessions;
+	std::vector< WhisperTarget::Channel > channels;
+};
+
+class ServerUser;
+
+struct WhisperTargetCache {
+	QSet< ServerUser * > channelTargets;
+	QSet< ServerUser * > directTargets;
+	QHash< ServerUser *, VolumeAdjustment > listeningTargets;
 };
 
 class Server;
 
-// Simple algorithm for rate limiting
+/// A simple implementation for rate-limiting.
+/// See https://en.wikipedia.org/wiki/Leaky_bucket
 class LeakyBucket {
-	private:
-		unsigned int tokensPerSec, maxTokens;
-		long currentTokens;
-		QTime lastUpdate;
+private:
+	/// The amount of tokens that are drained per second.
+	/// (The size of the whole in the bucket)
+	unsigned int m_tokensPerSec;
+	/// The maximum amount of tokens that may be encountered.
+	/// (The capacity of the bucket)
+	unsigned int m_maxTokens;
+	/// The amount of tokens currently stored
+	/// (The amount of whatever currently is in the bucket)
+	long m_currentTokens;
+	/// A timer that is used to measure time intervals. It is essential
+	/// that this timer uses a monotonic clock (which is why QElapsedTimer is
+	/// used instead of QTime or QDateTime).
+	/// TODO: Switch to Timer.
+	QElapsedTimer m_timer;
 
-	public:
-		// Returns true if packets should be dropped
-		bool ratelimit(int tokens);
+public:
+	/// @param tokens The amount of tokens that should be added.
+	/// @returns Whether adding this amount of tokens triggers rate
+	/// 	limiting (true means the corresponding packet has to be
+	/// 	discared and false means the packet may be processed)
+	bool ratelimit(int tokens);
 
-		LeakyBucket(unsigned int tokensPerSec, unsigned int maxTokens);
+	LeakyBucket(unsigned int tokensPerSec, unsigned int maxTokens);
 };
 
-class ServerUser : public Connection, public User {
-	private:
-		Q_OBJECT
-		Q_DISABLE_COPY(ServerUser)
-	protected:
-		Server *s;
-	public:
-		enum State { Connected, Authenticated };
-		State sState;
-		operator QString() const;
+class CryptState;
 
-		float dUDPPingAvg, dUDPPingVar;
-		float dTCPPingAvg, dTCPPingVar;
-		quint32 uiUDPPackets, uiTCPPackets;
+class ServerUser : public Connection, public ServerUserInfo {
+private:
+	Q_OBJECT
+	Q_DISABLE_COPY(ServerUser)
+protected:
+	Server *s;
 
-		unsigned int uiVersion;
-		QString qsRelease;
-		QString qsOS;
-		QString qsOSVersion;
+	Timer m_lastActivityTimer;
 
-		std::string ssContext;
-		QString qsIdentity;
+public:
+	enum State { Rejected, Connected, Authenticating, Authenticated };
+	std::atomic< State > sState;
+	std::atomic< bool > was_authenticated = false;
+	ClientType m_clientType;
+	operator QString() const;
 
-		bool bVerified;
-		QStringList qslEmail;
+	std::int64_t activityTime() const;
+	void resetActivityTime();
 
-		HostAddress haAddress;
+	void sendMessage(const ::google::protobuf::Message &msg, Mumble::Protocol::TCPMessageType msgType);
+	void sendMessage(const ::google::protobuf::Message &msg, Mumble::Protocol::TCPMessageType msgType,
+					 QByteArray &cache);
 
-		/// Holds whether the user is using TCP
-		/// or UDP for voice packets.
-		///
-		/// If the flag is 0, the user is using
-		/// TCP.
-		///
-		/// If the flag is 1, the user is using
-		/// UDP.
-		QAtomicInt aiUdpFlag;
+	float dUDPPingAvg, dUDPPingVar;
+	float dTCPPingAvg, dTCPPingVar;
+	quint32 uiUDPPackets, uiTCPPackets;
 
-		QList<int> qlCodecs;
-		bool bOpus;
+	HostAddress haAddress;
 
-		QStringList qslAccessTokens;
+	/// Holds whether the user is using TCP
+	/// or UDP for voice packets.
+	///
+	/// If the flag is 0, the user is using
+	/// TCP.
+	///
+	/// If the flag is 1, the user is using
+	/// UDP.
+	QAtomicInt aiUdpFlag;
 
-		QMap<int, WhisperTarget> qmTargets;
-		typedef QPair<QSet<ServerUser *>, QSet<ServerUser *> > TargetCache;
-		QMap<int, TargetCache> qmTargetCache;
-		QMap<QString, QString> qmWhisperRedirect;
+	QList< int > qlCodecs;
+	bool bOpus;
 
-		LeakyBucket leakyBucket;
+	QStringList qslAccessTokens;
 
-		int iLastPermissionCheck;
-		QMap<int, unsigned int> qmPermissionSent;
+	QMap< int, WhisperTarget > qmTargets;
+	QMap< int, WhisperTargetCache > qmTargetCache;
+	QMap< QString, QString > qmWhisperRedirect;
+
+	LeakyBucket leakyBucket;
+	LeakyBucket m_pluginMessageBucket;
+
+	int iLastPermissionCheck;
+	QMap< int, unsigned int > qmPermissionSent;
 #ifdef Q_OS_UNIX
-		int sUdpSocket;
+	int sUdpSocket;
 #else
-		SOCKET sUdpSocket;
+	SOCKET sUdpSocket;
 #endif
-		BandwidthRecord bwr;
-		struct sockaddr_storage saiUdpAddress;
-		struct sockaddr_storage saiTcpLocalAddress;
-		ServerUser(Server *parent, QSslSocket *socket);
+	BandwidthRecord bwr;
+	struct sockaddr_storage saiUdpAddress;
+	struct sockaddr_storage saiTcpLocalAddress;
+
+	/// qmCrypt locks access to csCrypt.
+	std::mutex qmCrypt;
+	std::unique_ptr< CryptState > csCrypt;
+
+	ServerUser(Server *parent, QSslSocket *socket);
+	~ServerUser();
+
+	void rejectConnection(bool forceDisconnect = false);
 };
 
 #endif

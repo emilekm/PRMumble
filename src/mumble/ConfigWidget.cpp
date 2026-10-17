@@ -1,26 +1,32 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "mumble_pch.hpp"
-
 #include "ConfigWidget.h"
 
-QMap<int, ConfigWidgetNew> *ConfigRegistrar::c_qmNew;
+#include "MumbleApplication.h"
+
+#include <QtCore/QMap>
+#include <QtGui/QIcon>
+#include <QtWidgets/QAbstractButton>
+#include <QtWidgets/QComboBox>
+#include <QtWidgets/QSlider>
+
+QMap< int, ConfigWidgetNew > *ConfigRegistrar::c_qmNew;
 
 ConfigRegistrar::ConfigRegistrar(int priority, ConfigWidgetNew n) {
-	if (! c_qmNew)
-		c_qmNew = new QMap<int, ConfigWidgetNew>();
+	if (!c_qmNew)
+		c_qmNew = new QMap< int, ConfigWidgetNew >();
 	iPriority = priority;
-	c_qmNew->insert(priority,n);
+	c_qmNew->insert(priority, n);
 }
 
 ConfigRegistrar::~ConfigRegistrar() {
 	c_qmNew->remove(iPriority);
 	if (c_qmNew->isEmpty()) {
 		delete c_qmNew;
-		c_qmNew = NULL;
+		c_qmNew = nullptr;
 	}
 }
 
@@ -63,4 +69,3 @@ void ConfigWidget::loadComboBox(QComboBox *c, int v) {
 		disconnect(SIGNAL(intSignal(int)));
 	}
 }
-

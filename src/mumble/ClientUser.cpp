@@ -1,33 +1,33 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "mumble_pch.hpp"
-
 #include "ClientUser.h"
 
-#include "Channel.h"
-#include "Global.h"
 #include "AudioOutput.h"
+#include "Channel.h"
+#include "PluginManager.h"
+#include "Global.h"
 
-QHash<unsigned int, ClientUser *> ClientUser::c_qmUsers;
+QHash< unsigned int, ClientUser * > ClientUser::c_qmUsers;
 QReadWriteLock ClientUser::c_qrwlUsers;
 
-QList<ClientUser *> ClientUser::c_qlTalking;
+QList< ClientUser * > ClientUser::c_qlTalking;
 QReadWriteLock ClientUser::c_qrwlTalking;
 
-ClientUser::ClientUser(QObject *p) : QObject(p),
-		tsState(Settings::Passive),
-		tLastTalkStateChange(false),
-		bLocalIgnore(false),
-		bLocalMute(false),
-		fPowerMin(0.0f),
-		fPowerMax(0.0f),
-		fAverageAvailable(0.0f),
-		fLocalVolume(1.0f),
-		iFrames(0),
-		iSequence(0) {
+ClientUser::ClientUser(QObject *p)
+	: QObject(p), tsState(Settings::Passive), tLastTalkStateChange(false), bLocalIgnore(false), bLocalIgnoreTTS(false),
+	  bLocalMute(false), volumeMute(false), fPowerMin(0.0f), fPowerMax(0.0f), fAverageAvailable(0.0f), iFrames(0),
+	  iSequence(0) {
+}
+
+float ClientUser::getLocalVolumeAdjustments() const {
+	return m_localVolume;
+}
+
+QString ClientUser::getLocalNickname() const {
+	return m_localNickname;
 }
 
 ClientUser *ClientUser::get(unsigned int uiSession) {
@@ -36,15 +36,15 @@ ClientUser *ClientUser::get(unsigned int uiSession) {
 	return p;
 }
 
-QList<ClientUser *> ClientUser::getTalking() {
+QList< ClientUser * > ClientUser::getTalking() {
 	QReadLocker lock(&c_qrwlTalking);
 	return c_qlTalking;
 }
 
-QList<ClientUser *> ClientUser::getActive() {
+QList< ClientUser * > ClientUser::getActive() {
 	QReadLocker lock(&c_qrwlUsers);
-	QList<ClientUser *> activeUsers;
-	foreach(ClientUser *cu, c_qmUsers) {
+	QList< ClientUser * > activeUsers;
+	for (ClientUser *cu : c_qmUsers) {
 		if (cu->isActive())
 			activeUsers << cu;
 	}
@@ -60,17 +60,20 @@ bool ClientUser::isValid(unsigned int uiSession) {
 ClientUser *ClientUser::add(unsigned int uiSession, QObject *po) {
 	QWriteLocker lock(&c_qrwlUsers);
 
-	ClientUser *p = new ClientUser(po);
-	p->uiSession = uiSession;
+	ClientUser *p        = new ClientUser(po);
+	p->uiSession         = uiSession;
 	c_qmUsers[uiSession] = p;
+
+	QObject::connect(p, &ClientUser::talkingStateChanged, Global::get().pluginManager,
+					 &PluginManager::on_userTalkingStateChanged);
+
 	return p;
 }
 
 ClientUser *ClientUser::match(const ClientUser *other, bool matchname) {
 	QReadLocker lock(&c_qrwlUsers);
 
-	ClientUser *p;
-	foreach(p, c_qmUsers) {
+	for (ClientUser *p : c_qmUsers) {
 		if (p == other)
 			continue;
 		if ((p->iId >= 0) && (p->iId == other->iId))
@@ -78,23 +81,38 @@ ClientUser *ClientUser::match(const ClientUser *other, bool matchname) {
 		if (matchname && (p->qsName == other->qsName))
 			return p;
 	}
-	return NULL;
+	return nullptr;
 }
 
 void ClientUser::remove(unsigned int uiSession) {
-	QWriteLocker lock(&c_qrwlUsers);
-	ClientUser *p = c_qmUsers.take(uiSession);
+	ClientUser *p;
+	{
+		QWriteLocker lock(&c_qrwlUsers);
+		p = c_qmUsers.take(uiSession);
+
+		if (p) {
+			if (p->cChannel)
+				p->cChannel->removeUser(p);
+
+			if (p->tsState != Settings::Passive) {
+				QWriteLocker writeLock(&c_qrwlTalking);
+				c_qlTalking.removeAll(p);
+			}
+		}
+	}
+
 	if (p) {
-		if (p->cChannel)
-			p->cChannel->removeUser(p);
-
-		AudioOutputPtr ao = g.ao;
-		if (ao)
-			ao->removeBuffer(p);
-
-		if (p->tsState != Settings::Passive) {
-			QWriteLocker writeLock(&c_qrwlTalking);
-			c_qlTalking.removeAll(p);
+		AudioOutputPtr ao = Global::get().ao;
+		if (ao) {
+			// It is safe to call this function and to give the ClientUser pointer
+			// to it even though we don't hold the lock anymore as it will only take
+			// the pointer to use as the key in a HashMap lookup. At no point in the
+			// code triggered by this function call will the ClientUser pointer be
+			// dereferenced.
+			// Furthermore ClientUser objects are deleted in UserModel::removeUser which
+			// calls this very function before doing so. Thus the object shouldn't be
+			// deleted before this function returns anyways.
+			ao->removeUser(p);
 		}
 	}
 }
@@ -106,7 +124,7 @@ void ClientUser::remove(ClientUser *p) {
 QString ClientUser::getFlagsString() const {
 	QStringList flags;
 
-	if (! qsFriendName.isEmpty())
+	if (!qsFriendName.isEmpty())
 		flags << ClientUser::tr("Friend");
 	if (iId >= 0)
 		flags << ClientUser::tr("Authenticated");
@@ -120,6 +138,8 @@ QString ClientUser::getFlagsString() const {
 		flags << ClientUser::tr("Deafened (server)");
 	if (bLocalIgnore)
 		flags << ClientUser::tr("Local Ignore (Text messages)");
+	if (bLocalIgnoreTTS)
+		flags << ClientUser::tr("Local Ignore (Text-To-Speech)");
 	if (bLocalMute)
 		flags << ClientUser::tr("Local Mute");
 	if (bSelfMute)
@@ -157,7 +177,7 @@ void ClientUser::setMute(bool mute) {
 	if (bMute == mute)
 		return;
 	bMute = mute;
-	if (! bMute)
+	if (!bMute)
 		bDeaf = false;
 	emit muteDeafStateChanged();
 }
@@ -176,6 +196,10 @@ void ClientUser::setLocalIgnore(bool ignore) {
 	emit muteDeafStateChanged();
 }
 
+void ClientUser::setLocalIgnoreTTS(bool ignoreTTS) {
+	bLocalIgnoreTTS = ignoreTTS;
+}
+
 void ClientUser::setLocalMute(bool mute) {
 	if (bLocalMute == mute)
 		return;
@@ -192,7 +216,7 @@ void ClientUser::setDeaf(bool deaf) {
 
 void ClientUser::setSelfMute(bool mute) {
 	bSelfMute = mute;
-	if (! mute)
+	if (!mute)
 		bSelfDeaf = false;
 	emit muteDeafStateChanged();
 }
@@ -225,8 +249,23 @@ void ClientUser::setPosition(float x, float y, float z) {
 	emit positionChanged();
 }
 
+void ClientUser::setLocalVolumeAdjustment(float adjustment) {
+	float oldAdjustment = m_localVolume;
+	m_localVolume       = adjustment;
+
+	emit localVolumeAdjustmentsChanged(m_localVolume, oldAdjustment);
+}
+
+void ClientUser::setLocalNickname(const QString &nickname) {
+	if (m_localNickname != nickname) {
+		m_localNickname = nickname;
+
+		emit localNicknameChanged();
+	}
+}
+
 bool ClientUser::lessThanOverlay(const ClientUser *first, const ClientUser *second) {
-	if (g.s.os.osSort == OverlaySettings::LastStateChange) {
+	if (Global::get().s.os.osSort == OverlaySettings::LastStateChange) {
 		// Talkers above non-talkers
 		if (first->tsState != Settings::Passive && second->tsState == Settings::Passive)
 			return true;
@@ -255,12 +294,12 @@ bool ClientUser::lessThanOverlay(const ClientUser *first, const ClientUser *seco
 		// If both times are invalid, fall back to alphabetically (continuing below)
 	}
 
-	if (first->cChannel == second->cChannel || first->cChannel == NULL || second->cChannel == NULL)
+	if (first->cChannel == second->cChannel || !first->cChannel || !second->cChannel)
 		return lessThan(first, second);
 
 	// When sorting for the overlay always place the local users
 	// channel above the others
-	ClientUser *self = c_qmUsers.value(g.uiSession);
+	ClientUser *self = c_qmUsers.value(Global::get().uiSession);
 	if (self) {
 		if (self->cChannel == first->cChannel)
 			return true;
@@ -271,10 +310,10 @@ bool ClientUser::lessThanOverlay(const ClientUser *first, const ClientUser *seco
 	return Channel::lessThan(first->cChannel, second->cChannel);
 }
 
-void ClientUser::sortUsersOverlay(QList<ClientUser *> &list) {
+void ClientUser::sortUsersOverlay(QList< ClientUser * > &list) {
 	QReadLocker lock(&c_qrwlUsers);
 
-	qSort(list.begin(), list.end(), ClientUser::lessThanOverlay);
+	std::sort(list.begin(), list.end(), ClientUser::lessThanOverlay);
 }
 
 bool ClientUser::isActive() {
@@ -284,7 +323,7 @@ bool ClientUser::isActive() {
 	if (!tLastTalkStateChange.isStarted())
 		return false;
 
-	return tLastTalkStateChange.elapsed() < g.s.os.uiActiveTime * 1000000U;
+	return tLastTalkStateChange.elapsed() < std::chrono::seconds(Global::get().s.os.uiActiveTime);
 }
 
 /* From Channel.h

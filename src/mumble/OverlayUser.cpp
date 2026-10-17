@@ -1,32 +1,32 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "mumble_pch.hpp"
-
 #include "OverlayUser.h"
 
-#include "OverlayText.h"
-#include "User.h"
 #include "Channel.h"
 #include "ClientUser.h"
-#include "Message.h"
 #include "Database.h"
-#include "NetworkConfig.h"
-#include "ServerHandler.h"
 #include "MainWindow.h"
+#include "NetworkConfig.h"
+#include "OverlayText.h"
+#include "ServerHandler.h"
+#include "User.h"
+#include "Utils.h"
+#include "Global.h"
 #include "GlobalShortcut.h"
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
-#include "Global.h"
+#include <QtGui/QImageReader>
 
-OverlayUser::OverlayUser(ClientUser *cu, unsigned int height, OverlaySettings *osptr) : OverlayGroup(), os(osptr), uiSize(height), cuUser(cu), tsColor(Settings::Passive) {
+OverlayUser::OverlayUser(ClientUser *cu, unsigned int height, OverlaySettings *osptr)
+	: OverlayGroup(), os(osptr), uiSize(height), cuUser(cu), tsColor(Settings::Passive) {
 	setup();
 	updateLayout();
 }
 
-OverlayUser::OverlayUser(Settings::TalkState ts, unsigned int height, OverlaySettings *osptr) : OverlayGroup(), os(osptr), uiSize(height), cuUser(NULL), tsColor(ts) {
+OverlayUser::OverlayUser(Settings::TalkState ts, unsigned int height, OverlaySettings *osptr)
+	: OverlayGroup(), os(osptr), uiSize(height), cuUser(nullptr), tsColor(ts) {
 	qsChannelName = Overlay::tr("Channel");
 
 	setup();
@@ -46,7 +46,7 @@ void OverlayUser::setup() {
 
 	qgpiAvatar = new QGraphicsPixmapItem(this);
 
-	for (int i=0;i<4;++i) {
+	for (int i = 0; i < 4; ++i) {
 		qgpiName[i] = new QGraphicsPixmapItem(this);
 		qgpiName[i]->hide();
 	}
@@ -58,18 +58,25 @@ void OverlayUser::setup() {
 	qgpiBox->hide();
 }
 
-#undef SCALESIZE
-#define SCALESIZE(var) iroundf(uiSize * os->fZoom * os->qrf##var .width() + 0.5f), iroundf(uiSize * os->fZoom * os->qrf##var .height() + 0.5f)
+template< typename T > int roundToInt(T value) {
+	return static_cast< int >(value + 0.5f);
+}
+
+template< typename T > unsigned int roundToUInt(T value) {
+	return static_cast< unsigned int >(value + 0.5f);
+}
 
 void OverlayUser::updateLayout() {
 	QPixmap pm;
 
+	const double scaleFactor = uiSize * os->fZoom;
+
 	if (scene())
-		uiSize = iroundf(scene()->sceneRect().height() + 0.5);
+		uiSize = static_cast< unsigned int >(scene()->sceneRect().height() + 0.5);
 
 	prepareGeometryChange();
 
-	for (int i=0;i<4;++i)
+	for (int i = 0; i < 4; ++i)
 		qgpiName[i]->setPixmap(pm);
 
 	qgpiAvatar->setPixmap(pm);
@@ -78,7 +85,8 @@ void OverlayUser::updateLayout() {
 	{
 		QImageReader qir(QLatin1String("skin:muted_self.svg"));
 		QSize sz = qir.size();
-		sz.scale(SCALESIZE(MutedDeafened), Qt::KeepAspectRatio);
+		sz.scale(roundToInt(os->qrfMutedDeafened.width() * scaleFactor),
+				 roundToInt(os->qrfMutedDeafened.height() * scaleFactor), Qt::KeepAspectRatio);
 		qir.setScaledSize(sz);
 		qgpiMuted->setPixmap(QPixmap::fromImage(qir.read()));
 	}
@@ -86,23 +94,26 @@ void OverlayUser::updateLayout() {
 	{
 		QImageReader qir(QLatin1String("skin:deafened_self.svg"));
 		QSize sz = qir.size();
-		sz.scale(SCALESIZE(MutedDeafened), Qt::KeepAspectRatio);
+		sz.scale(roundToInt(os->qrfMutedDeafened.width() * scaleFactor),
+				 roundToInt(os->qrfMutedDeafened.height() * scaleFactor), Qt::KeepAspectRatio);
 		qir.setScaledSize(sz);
 		qgpiDeafened->setPixmap(QPixmap::fromImage(qir.read()));
 	}
 
-	qgpiMuted->setPos(alignedPosition(scaledRect(os->qrfMutedDeafened, uiSize * os->fZoom), qgpiMuted->boundingRect(), os->qaMutedDeafened));
+	qgpiMuted->setPos(alignedPosition(scaledRect(os->qrfMutedDeafened, uiSize * os->fZoom), qgpiMuted->boundingRect(),
+									  os->qaMutedDeafened));
 	qgpiMuted->setZValue(1.0f);
 	qgpiMuted->setOpacity(os->fMutedDeafened);
 
-	qgpiDeafened->setPos(alignedPosition(scaledRect(os->qrfMutedDeafened, uiSize * os->fZoom), qgpiDeafened->boundingRect(), os->qaMutedDeafened));
+	qgpiDeafened->setPos(alignedPosition(scaledRect(os->qrfMutedDeafened, uiSize * os->fZoom),
+										 qgpiDeafened->boundingRect(), os->qaMutedDeafened));
 	qgpiDeafened->setZValue(1.0f);
 	qgpiDeafened->setOpacity(os->fMutedDeafened);
 
 	qgpiAvatar->setPos(0.0f, 0.0f);
 	qgpiAvatar->setOpacity(os->fAvatar);
 
-	for (int i=0;i<4;++i) {
+	for (int i = 0; i < 4; ++i) {
 		qgpiName[i]->setPos(0.0f, 0.0f);
 		qgpiName[i]->setZValue(2.0f);
 		qgpiName[i]->setOpacity(os->fUserName);
@@ -111,27 +122,34 @@ void OverlayUser::updateLayout() {
 	qgpiChannel->setZValue(3.0f);
 	qgpiChannel->setOpacity(os->fChannel);
 
-	QRectF childrenBounds = os->qrfAvatar | os->qrfChannel | os->qrfMutedDeafened | os->qrfUserName;
+	const QRectF childrenBounds = os->qrfAvatar | os->qrfChannel | os->qrfMutedDeafened | os->qrfUserName;
 
-	bool haspen = (os->qcBoxPen != os->qcBoxFill) && (! qFuzzyCompare(os->qcBoxPen.alphaF(), static_cast<qreal>(0.0f)));
-	qreal pw = haspen ? qMax<qreal>(1.0f, os->fBoxPenWidth * uiSize * os->fZoom) : 0.0f;
-	qreal pad = os->fBoxPad * uiSize * os->fZoom;
+	const bool haspen =
+		(os->qcBoxPen != os->qcBoxFill) && (!qFuzzyCompare(static_cast< float >(os->qcBoxPen.alphaF()), 0.0f));
+	const qreal pw  = haspen ? qMax< qreal >(1.0f, os->fBoxPenWidth * uiSize * os->fZoom) : 0.0f;
+	const qreal pad = os->fBoxPad * uiSize * os->fZoom;
 	QPainterPath pp;
-	pp.addRoundedRect(childrenBounds.x() * uiSize * os->fZoom + -pw / 2.0f - pad, childrenBounds.y() * uiSize * os->fZoom + -pw / 2.0f - pad, childrenBounds.width() * uiSize * os->fZoom + pw + 2.0f * pad, childrenBounds.height() * uiSize * os->fZoom + pw + 2.0f * pad, 2.0f * pw, 2.0f * pw);
+	pp.addRoundedRect(childrenBounds.x() * uiSize * os->fZoom + -pw / 2.0f - pad,
+					  childrenBounds.y() * uiSize * os->fZoom + -pw / 2.0f - pad,
+					  childrenBounds.width() * uiSize * os->fZoom + pw + 2.0f * pad,
+					  childrenBounds.height() * uiSize * os->fZoom + pw + 2.0f * pad, 2.0f * pw, 2.0f * pw);
 	qgpiBox->setPath(pp);
 	qgpiBox->setPos(0.0f, 0.0f);
 	qgpiBox->setZValue(-1.0f);
 	qgpiBox->setPen(haspen ? QPen(os->qcBoxPen, pw) : Qt::NoPen);
-	qgpiBox->setBrush(qFuzzyCompare(os->qcBoxFill.alphaF(), static_cast<qreal>(0.0f)) ? Qt::NoBrush : os->qcBoxFill);
+	qgpiBox->setBrush(qFuzzyCompare(static_cast< float >(os->qcBoxFill.alphaF()), 0.0f) ? Qt::NoBrush : os->qcBoxFill);
 	qgpiBox->setOpacity(1.0f);
 
-	if (! cuUser) {
+	if (!cuUser) {
 		switch (tsColor) {
 			case Settings::Passive:
 				qsName = Overlay::tr("Silent");
 				break;
 			case Settings::Talking:
 				qsName = Overlay::tr("Talking");
+				break;
+			case Settings::MutedTalking:
+				qsName = QObject::tr("Talking (muted)");
 				break;
 			case Settings::Whispering:
 				qsName = Overlay::tr("Whisper");
@@ -144,17 +162,21 @@ void OverlayUser::updateLayout() {
 }
 
 void OverlayUser::updateUser() {
+	const double scaleFactor = uiSize * os->fZoom;
+
 	if (os->bUserName && (qgpiName[0]->pixmap().isNull() || (cuUser && (qsName != cuUser->qsName)))) {
 		if (cuUser)
 			qsName = cuUser->qsName;
 
 		OverlayTextLine tl(qsName, os->qfUserName);
-		for (int i=0; i<4; ++i) {
-			const QPixmap &pm = tl.createPixmap(SCALESIZE(UserName), os->qcUserName[i]);
+		for (unsigned int i = 0; i < 4; ++i) {
+			const QPixmap &pm = tl.createPixmap(roundToUInt(os->qrfUserName.width() * scaleFactor),
+												roundToUInt(os->qrfUserName.height() * scaleFactor), os->qcUserName[i]);
 			qgpiName[i]->setPixmap(pm);
 
 			if (i == 0)
-				qgpiName[0]->setPos(alignedPosition(scaledRect(os->qrfUserName, uiSize * os->fZoom), qgpiName[0]->boundingRect(), os->qaUserName));
+				qgpiName[0]->setPos(alignedPosition(scaledRect(os->qrfUserName, uiSize * os->fZoom),
+													qgpiName[0]->boundingRect(), os->qaUserName));
 			else
 				qgpiName[i]->setPos(qgpiName[0]->pos());
 		}
@@ -164,9 +186,12 @@ void OverlayUser::updateUser() {
 		if (cuUser)
 			qsChannelName = cuUser->cChannel->qsName;
 
-		const QPixmap &pm = OverlayTextLine(qsChannelName, os->qfChannel).createPixmap(SCALESIZE(Channel), os->qcChannel);
+		const QPixmap &pm = OverlayTextLine(qsChannelName, os->qfChannel)
+								.createPixmap(roundToUInt(os->qrfChannel.width() * scaleFactor),
+											  roundToUInt(os->qrfChannel.height() * scaleFactor), os->qcChannel);
 		qgpiChannel->setPixmap(pm);
-		qgpiChannel->setPos(alignedPosition(scaledRect(os->qrfChannel, uiSize * os->fZoom), qgpiChannel->boundingRect(), os->qaChannel));
+		qgpiChannel->setPos(alignedPosition(scaledRect(os->qrfChannel, uiSize * os->fZoom), qgpiChannel->boundingRect(),
+											os->qaChannel));
 	}
 
 	if (os->bAvatar && (qgpiAvatar->pixmap().isNull() || (cuUser && (qbaAvatar != cuUser->qbaTextureHash)))) {
@@ -175,33 +200,36 @@ void OverlayUser::updateUser() {
 
 		QImage img;
 
-		if (! qbaAvatar.isNull() && cuUser->qbaTexture.isEmpty()) {
-			g.o->requestTexture(cuUser);
+		if (!qbaAvatar.isNull() && cuUser->qbaTexture.isEmpty()) {
+			Global::get().o->requestTexture(cuUser);
 		} else if (qbaAvatar.isNull()) {
 			QImageReader qir(QLatin1String("skin:default_avatar.svg"));
 			QSize sz = qir.size();
-			sz.scale(SCALESIZE(Avatar), Qt::KeepAspectRatio);
+			sz.scale(roundToInt(os->qrfAvatar.width() * scaleFactor), roundToInt(os->qrfAvatar.height() * scaleFactor),
+					 Qt::KeepAspectRatio);
 			qir.setScaledSize(sz);
 			img = qir.read();
 		} else {
-			QBuffer qb(& cuUser->qbaTexture);
+			QBuffer qb(&cuUser->qbaTexture);
 			qb.open(QIODevice::ReadOnly);
 
 			QImageReader qir(&qb, cuUser->qbaTextureFormat);
 			QSize sz = qir.size();
-			sz.scale(SCALESIZE(Avatar), Qt::KeepAspectRatio);
+			sz.scale(roundToInt(os->qrfAvatar.width() * scaleFactor), roundToInt(os->qrfAvatar.height() * scaleFactor),
+					 Qt::KeepAspectRatio);
 			qir.setScaledSize(sz);
 			img = qir.read();
 		}
 
 		qgpiAvatar->setPixmap(QPixmap::fromImage(img));
-		qgpiAvatar->setPos(alignedPosition(scaledRect(os->qrfAvatar, uiSize * os->fZoom), qgpiAvatar->boundingRect(), os->qaAvatar));
+		qgpiAvatar->setPos(
+			alignedPosition(scaledRect(os->qrfAvatar, uiSize * os->fZoom), qgpiAvatar->boundingRect(), os->qaAvatar));
 	}
 
 	qgpiAvatar->setVisible(os->bAvatar);
 
 	if (cuUser) {
-		ClientUser *self = ClientUser::get(g.uiSession);
+		ClientUser *self = ClientUser::get(Global::get().uiSession);
 
 		if (os->bMutedDeafened) {
 			if (cuUser->bDeaf || cuUser->bSelfDeaf) {
@@ -220,7 +248,7 @@ void OverlayUser::updateUser() {
 		}
 
 		bool samechannel = self && (self->cChannel == cuUser->cChannel);
-		qgpiChannel->setVisible(os->bChannel && ! samechannel);
+		qgpiChannel->setVisible(os->bChannel && !samechannel);
 
 		tsColor = cuUser->tsState;
 	} else {
@@ -230,10 +258,10 @@ void OverlayUser::updateUser() {
 	}
 
 	if (os->bUserName)
-		for (int i=0;i<4;++i)
+		for (int i = 0; i < 4; ++i)
 			qgpiName[i]->setVisible(i == tsColor);
 	else
-		for (int i=0;i<4;++i)
+		for (int i = 0; i < 4; ++i)
 			qgpiName[i]->setVisible(false);
 
 	qgpiBox->setVisible(os->bBox);
@@ -268,6 +296,5 @@ QPointF OverlayUser::alignedPosition(const QRectF &box, const QRectF &item, Qt::
 	else if (a & Qt::AlignVCenter)
 		yofs += hdiff * 0.5f;
 
-	return QPointF(iroundf(xofs + 0.5f), iroundf(yofs + 0.5f));
+	return QPointF(static_cast< int >(xofs + 0.5f), static_cast< int >(yofs + 0.5f));
 }
-

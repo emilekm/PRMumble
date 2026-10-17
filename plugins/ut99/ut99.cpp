@@ -1,4 +1,4 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
@@ -13,13 +13,13 @@
    are met:
 
    - Redistributions of source code must retain the above copyright notice,
-     this list of conditions and the following disclaimer.
+	 this list of conditions and the following disclaimer.
    - Redistributions in binary form must reproduce the above copyright notice,
-     this list of conditions and the following disclaimer in the documentation
-     and/or other materials provided with the distribution.
+	 this list of conditions and the following disclaimer in the documentation
+	 and/or other materials provided with the distribution.
    - Neither the name of the Mumble Developers nor the names of its
-     contributors may be used to endorse or promote products derived from this
-     software without specific prior written permission.
+	 contributors may be used to endorse or promote products derived from this
+	 software without specific prior written permission.
 
    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
    ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
@@ -34,20 +34,16 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "../mumble_plugin_win32.h"
+#define MUMBLE_ALLOW_DEPRECATED_LEGACY_PLUGIN_API
+#include "mumble_legacy_plugin.h"
+
+#include "mumble_positional_audio_main.h"
+
+#include <utf8/checked.h>
 
 procptr_t posptr;
 procptr_t frtptr;
 procptr_t topptr;
-
-static void wcsToMultibyteStdString(wchar_t *wcs, std::string &str) {
-	const int size = WideCharToMultiByte(CP_UTF8, 0, wcs, -1, NULL, 0, NULL, NULL);
-	if (size == 0) return;
-
-	str.resize(size);
-
-	WideCharToMultiByte(CP_UTF8, 0, wcs, -1, &str[0], size, NULL, NULL);
-}
 
 static bool cross(float *a, float *b, float *c) {
 	if (a == 0 || b == 0 || c == 0)
@@ -61,7 +57,7 @@ static bool cross(float *a, float *b, float *c) {
 }
 
 static void norm(float *a) {
-	float length = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
+	float length = sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]);
 	if (length != 0.0f) {
 		a[0] /= length;
 		a[1] /= length;
@@ -70,7 +66,7 @@ static void norm(float *a) {
 }
 
 static bool correctFront(float *front, float *top) {
-	float n [3];
+	float n[3] = { 0 };
 
 	if (top[1] < 0) {
 		front[0] *= -1;
@@ -92,15 +88,16 @@ static bool correctFront(float *front, float *top) {
 	return true;
 }
 
-static int fetch(float *avatar_pos, float *avatar_front, float *avatar_top, float *camera_pos, float *camera_front, float *camera_top, std::string &context, std::wstring &/*identity*/) {
-	for (int i=0;i<3;i++)
-		avatar_pos[i]=avatar_front[i]=avatar_top[i]=0.0f;
+static int fetch(float *avatar_pos, float *avatar_front, float *avatar_top, float *camera_pos, float *camera_front,
+				 float *camera_top, std::string &context, std::wstring & /*identity*/) {
+	for (int i = 0; i < 3; i++)
+		avatar_pos[i] = avatar_front[i] = avatar_top[i] = 0.0f;
 
 	char state;
 	bool ok;
 
 	ok = peekProc(pModule + 0x290557, state); // Magical state value
-	if (! ok)
+	if (!ok)
 		return false;
 
 	if (state != 8) {
@@ -114,36 +111,34 @@ static int fetch(float *avatar_pos, float *avatar_front, float *avatar_top, floa
 	float top_corrector[3];
 
 	// Peekproc and assign game addresses to our containers, so we can retrieve positional data
-	ok = peekProc(posptr, pos_corrector) &&
-	     peekProc(frtptr, front_corrector) &&
-	     peekProc(topptr, top_corrector);
+	ok = peekProc(posptr, pos_corrector) && peekProc(frtptr, front_corrector) && peekProc(topptr, top_corrector);
 
-	if (! ok)
+	if (!ok)
 		return false;
-	
+
 	// Convert to left-handed coordinate system
 
 	avatar_pos[0] = -pos_corrector[0];
 	avatar_pos[1] = pos_corrector[2];
 	avatar_pos[2] = pos_corrector[1];
 
-	for (int i=0;i<3;i++)
+	for (int i = 0; i < 3; i++)
 		avatar_pos[i] /= 64.0f; // Scale to meters
 
 	avatar_front[0] = -front_corrector[1];
 	avatar_front[1] = front_corrector[2];
 	avatar_front[2] = -front_corrector[0];
-	
+
 	avatar_top[0] = top_corrector[0];
 	avatar_top[1] = -top_corrector[2];
 	avatar_top[2] = -top_corrector[1];
 
 	correctFront(avatar_front, avatar_top);
-	
-	for (int i=0;i<3;i++) {
-		camera_pos[i] = avatar_pos[i];
+
+	for (int i = 0; i < 3; i++) {
+		camera_pos[i]   = avatar_pos[i];
 		camera_front[i] = avatar_front[i];
-		camera_top[i] = avatar_top[i];
+		camera_top[i]   = avatar_top[i];
 	}
 
 	// Read server name
@@ -152,37 +147,34 @@ static int fetch(float *avatar_pos, float *avatar_front, float *avatar_top, floa
 	procptr_t cptr1 = peekProcPtr(cptr0 + 0x73C);
 	procptr_t cptr2 = peekProcPtr(cptr1 + 0x244);
 
-
-	wchar_t wservername[60];
-
-	ok = peekProc((procptr_t) cptr2, wservername);
-	if (! ok)
+	std::u16string servername;
+	servername.resize(60);
+	if (!peekProc(cptr2, &servername[0], servername.size())) {
 		return false;
-
-	wservername[sizeof(wservername)/sizeof(wservername[0]) - 1] = '\0';
-
-	std::string servername;
-	wcsToMultibyteStdString(wservername, servername);
+	}
 
 	std::ostringstream contextss;
-	contextss << "{"
-	          << "\"servername\":\"" << servername << "\""
-	          << "}";
+	contextss << "{";
+	try {
+		contextss << "\"servername\":\"" << utf8::utf16to8(servername) << "\"";
+	} catch (const utf8::invalid_utf16 &) {
+		contextss << "\"servername\":\" null";
+	}
+	contextss << "}";
 
 	context = contextss.str();
 
 	return true;
 }
 
-static int trylock(const std::multimap<std::wstring, unsigned long long int> &pids) {
-
-	if (! initialize(pids, L"UnrealTournament.exe", L"Engine.dll"))
+static int trylock(const std::multimap< std::wstring, unsigned long long int > &pids) {
+	if (!initialize(pids, L"UnrealTournament.exe", L"Engine.dll"))
 		return false;
 
 	procptr_t base = pModule + 0x290584;
-	posptr = base;
-	frtptr = base + 0x0C;
-	topptr = base + 0x18;
+	posptr         = base;
+	frtptr         = base + 0x0C;
+	topptr         = base + 0x18;
 
 	// Check if we can get meaningful data from it
 	float apos[3], afront[3], atop[3];
@@ -206,26 +198,13 @@ static std::wstring description(L"Unreal Tournament (v436)");
 static std::wstring shortname(L"Unreal Tournament");
 
 static int trylock1() {
-	return trylock(std::multimap<std::wstring, unsigned long long int>());
+	return trylock(std::multimap< std::wstring, unsigned long long int >());
 }
 
-static MumblePlugin ut99plug = {
-	MUMBLE_PLUGIN_MAGIC,
-	description,
-	shortname,
-	NULL,
-	NULL,
-	trylock1,
-	generic_unlock,
-	longdesc,
-	fetch
-};
+static MumblePlugin ut99plug = { MUMBLE_PLUGIN_MAGIC, description, shortname, nullptr, nullptr, trylock1,
+								 generic_unlock,      longdesc,    fetch };
 
-static MumblePlugin2 ut99plug2 = {
-	MUMBLE_PLUGIN_MAGIC_2,
-	MUMBLE_PLUGIN_VERSION,
-	trylock
-};
+static MumblePlugin2 ut99plug2 = { MUMBLE_PLUGIN_MAGIC_2, MUMBLE_PLUGIN_VERSION, trylock };
 
 extern "C" MUMBLE_PLUGIN_EXPORT MumblePlugin *getMumblePlugin() {
 	return &ut99plug;

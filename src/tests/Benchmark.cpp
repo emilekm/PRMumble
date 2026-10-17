@@ -1,3 +1,8 @@
+// Copyright The Mumble Developers. All rights reserved.
+// Use of this source code is governed by a BSD-style license
+// that can be found in the LICENSE file at the root of the
+// Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
 /**
  * Provided a target address spawns a specified number of senders/speakers,
  * UDP-listeners and TCP-listeners.
@@ -7,58 +12,59 @@
 #include <QtNetwork>
 
 #ifndef Q_OS_WIN
-#include <unistd.h>
+#	include <unistd.h>
 #endif
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #ifndef Q_OS_WIN
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <sys/utsname.h>
+#	include <netinet/in.h>
+#	include <netinet/ip.h>
+#	include <sys/socket.h>
+#	include <sys/utsname.h>
 #endif
 #include <errno.h>
 
+#include "Message.h"
+#include "Mumble.pb.h"
 #include "PacketDataStream.h"
 #include "Timer.h"
-#include "Message.h"
-#include "CryptState.h"
-#include "Mumble.pb.h"
+#include "crypto/CryptState.h"
+
+#include <QRandomGenerator>
 
 class Client : public QThread {
-		Q_OBJECT
-	public:
-		bool udp;
-		bool sender;
-		struct sockaddr_in srv;
-		unsigned int uiSession;
-		CryptState crypt;
-		int rcvd;
-		int socket;
-		int seq;
-		void run();
-		void ping();
-		void sendVoice();
-		int numbytes;
-		int ptype;
-		QSslSocket *ssl;
-		Client(QObject *parent, QHostAddress srvaddr, unsigned short prt, bool send, bool tcponly);
-		void doUdp(const unsigned char *buffer, int size);
-		void sendMessage(const ::google::protobuf::Message &msg, unsigned int msgType);
-		~Client();
-	public slots:
-		void readyRead();
-		void disconnected();
+	Q_OBJECT
+public:
+	bool udp;
+	bool sender;
+	struct sockaddr_in srv;
+	unsigned int uiSession;
+	CryptStateOCB2 crypt;
+	int rcvd;
+	int socket;
+	int seq;
+	void run();
+	void ping();
+	void sendVoice();
+	int numbytes;
+	int ptype;
+	QSslSocket *ssl;
+	Client(QObject *parent, QHostAddress srvaddr, unsigned short prt, bool send, bool tcponly);
+	void doUdp(const unsigned char *buffer, int size);
+	void sendMessage(const ::google::protobuf::Message &msg, unsigned int msgType);
+	~Client();
+public slots:
+	void readyRead();
+	void disconnected();
 };
 
 Client::Client(QObject *p, QHostAddress qha, unsigned short prt, bool send, bool tcponly) : QThread(p) {
-	srv.sin_family = AF_INET;
+	srv.sin_family      = AF_INET;
 	srv.sin_addr.s_addr = htonl(qha.toIPv4Address());
-	srv.sin_port = htons(prt);
+	srv.sin_port        = htons(prt);
 
-	udp = ! tcponly;
+	udp    = !tcponly;
 	sender = send;
 
 	ssl = new QSslSocket(this);
@@ -69,7 +75,7 @@ Client::Client(QObject *p, QHostAddress qha, unsigned short prt, bool send, bool
 	ssl->setProtocol(QSsl::TlsV1);
 	ssl->connectToHostEncrypted(qha.toString(), prt);
 	ssl->ignoreSslErrors();
-	if (! ssl->waitForEncrypted())
+	if (!ssl->waitForEncrypted())
 		qFatal("Connection failure");
 
 	static int ctr = 1;
@@ -92,7 +98,7 @@ Client::Client(QObject *p, QHostAddress qha, unsigned short prt, bool send, bool
 
 	MumbleProto::Version mpv;
 	mpv.set_release(u8(QLatin1String("1.2.1 Benchmark")));
-	mpv.set_version(0x010203);
+	mpv.set_version_v1(Version::toLegacyVersion(Version::fromComponents(1, 2, 3)));
 
 	sendMessage(mpv, MessageHandler::Version);
 
@@ -104,8 +110,8 @@ Client::Client(QObject *p, QHostAddress qha, unsigned short prt, bool send, bool
 	if (udp)
 		socket = ::socket(PF_INET, SOCK_DGRAM, 0);
 
-	seq = 0;
-	rcvd = 0;
+	seq      = 0;
+	rcvd     = 0;
 	numbytes = -1;
 }
 
@@ -119,12 +125,12 @@ void Client::sendMessage(const ::google::protobuf::Message &msg, unsigned int ms
 	int len = msg.ByteSize();
 	Q_ASSERT(len < 4090);
 
-	* reinterpret_cast<quint16 *>(& uc[0]) = qToBigEndian(static_cast<quint16>(msgType));
-	* reinterpret_cast<quint32 *>(& uc[2]) = qToBigEndian(static_cast<quint32>(len));
+	*reinterpret_cast< quint16 * >(&uc[0]) = qToBigEndian(static_cast< quint16 >(msgType));
+	*reinterpret_cast< quint32 * >(&uc[2]) = qToBigEndian(static_cast< quint32 >(len));
 
 	msg.SerializeToArray(uc + 6, len);
 
-	ssl->write(reinterpret_cast<const char *>(uc), len + 6);
+	ssl->write(reinterpret_cast< const char * >(uc), len + 6);
 }
 
 void Client::ping() {
@@ -142,7 +148,7 @@ void Client::ping() {
 
 void Client::sendVoice() {
 	unsigned char buffer[1024];
-	int len = 32 + (qrand() & 0x3f);
+	int len = 32 + (QRandomGenerator::global()->generate() & 0x3f);
 
 	// Regular voice, nothing special
 	buffer[0] = 0;
@@ -156,13 +162,14 @@ void Client::sendVoice() {
 }
 
 void Client::doUdp(const unsigned char *buffer, int size) {
-	if (! udp || ! crypt.isValid())
+	if (!udp || !crypt.isValid())
 		return;
 
 	unsigned char crypted[2048];
 
-	crypt.encrypt(reinterpret_cast<const unsigned char *>(buffer), crypted, size);
-	::sendto(socket, reinterpret_cast<const char *>(crypted), size+4, 0, reinterpret_cast<struct sockaddr *>(&srv), sizeof(srv));
+	crypt.encrypt(reinterpret_cast< const unsigned char * >(buffer), crypted, size);
+	::sendto(socket, reinterpret_cast< const char * >(crypted), size + 4, 0,
+			 reinterpret_cast< struct sockaddr * >(&srv), sizeof(srv));
 }
 
 
@@ -172,12 +179,13 @@ void Client::run() {
 	socklen_t sz;
 	int len;
 
-	if (! udp)
+	if (!udp)
 		return;
 
 	forever {
-		sz = sizeof(addr);
-		len = ::recvfrom(socket, reinterpret_cast<char *>(buffer), 1024, 0, reinterpret_cast<struct sockaddr *>(&addr), &sz);
+		sz  = sizeof(addr);
+		len = ::recvfrom(socket, reinterpret_cast< char * >(buffer), 1024, 0,
+						 reinterpret_cast< struct sockaddr * >(&addr), &sz);
 		if (len <= 0)
 			break;
 		if (len >= 32)
@@ -192,10 +200,10 @@ void Client::readyRead() {
 			if (avail < 6)
 				break;
 			unsigned char b[6];
-			ssl->read(reinterpret_cast<char *>(b), 6);
+			ssl->read(reinterpret_cast< char * >(b), 6);
 
-			ptype = qFromBigEndian(* reinterpret_cast<quint16 *>(& b[0]));
-			numbytes = qFromBigEndian(* reinterpret_cast<quint32 *>(& b[2]));
+			ptype    = qFromBigEndian(*reinterpret_cast< quint16 * >(&b[0]));
+			numbytes = qFromBigEndian(*reinterpret_cast< quint32 * >(&b[2]));
 
 			avail = ssl->bytesAvailable();
 		}
@@ -204,49 +212,50 @@ void Client::readyRead() {
 			numbytes = -1;
 			unsigned char buff[65536];
 			Q_ASSERT(want < 65536);
-			ssl->read(reinterpret_cast<char *>(buff), want);
+			ssl->read(reinterpret_cast< char * >(buff), want);
 
 
 			avail = ssl->bytesAvailable();
 
 			switch (ptype) {
 				case MessageHandler::CryptSetup: {
-						MumbleProto::CryptSetup msg;
-						if (! msg.ParseFromArray(buff, want))
-							qFatal("Failed parse crypt");
+					MumbleProto::CryptSetup msg;
+					if (!msg.ParseFromArray(buff, want))
+						qFatal("Failed parse crypt");
 
-						if (msg.has_key() && msg.has_client_nonce() && msg.has_server_nonce()) {
-							const std::string &key = msg.key();
-							const std::string &client_nonce = msg.client_nonce();
-							const std::string &server_nonce = msg.server_nonce();
-							if (key.size() == AES_BLOCK_SIZE && client_nonce.size() == AES_BLOCK_SIZE && server_nonce.size() == AES_BLOCK_SIZE)
-								crypt.setKey(reinterpret_cast<const unsigned char *>(key.data()), reinterpret_cast<const unsigned char *>(client_nonce.data()), reinterpret_cast<const unsigned char *>(server_nonce.data()));
-						} else if (msg.has_server_nonce()) {
-							const std::string &server_nonce = msg.server_nonce();
-							if (server_nonce.size() == AES_BLOCK_SIZE) {
-								crypt.uiResync++;
-								memcpy(crypt.decrypt_iv, server_nonce.data(), AES_BLOCK_SIZE);
-							}
-						} else {
-							MumbleProto::CryptSetup mpcs;
-							mpcs.set_client_nonce(std::string(reinterpret_cast<const char *>(crypt.encrypt_iv), AES_BLOCK_SIZE));
-							sendMessage(mpcs, MessageHandler::CryptSetup);
+					if (msg.has_key() && msg.has_client_nonce() && msg.has_server_nonce()) {
+						const std::string &key          = msg.key();
+						const std::string &client_nonce = msg.client_nonce();
+						const std::string &server_nonce = msg.server_nonce();
+						if (key.size() == AES_BLOCK_SIZE && client_nonce.size() == AES_BLOCK_SIZE
+							&& server_nonce.size() == AES_BLOCK_SIZE)
+							crypt.setKey(key, client_nonce, server_nonce);
+					} else if (msg.has_server_nonce()) {
+						const std::string &server_nonce = msg.server_nonce();
+						if (server_nonce.size() == AES_BLOCK_SIZE) {
+							crypt.m_statsLocal.resync++;
+							crypt.setDecryptIV(server_nonce);
 						}
-						break;
+					} else {
+						MumbleProto::CryptSetup mpcs;
+						mpcs.set_client_nonce(crypt.getEncryptIV());
+						sendMessage(mpcs, MessageHandler::CryptSetup);
 					}
+					break;
+				}
 				case MessageHandler::ServerSync: {
-						MumbleProto::ServerSync msg;
-						if (! msg.ParseFromArray(buff, want))
-							qFatal("Failed parse sync");
-						uiSession = msg.session();
-						break;
-					}
+					MumbleProto::ServerSync msg;
+					if (!msg.ParseFromArray(buff, want))
+						qFatal("Failed parse sync");
+					uiSession = msg.session();
+					break;
+				}
 				case MessageHandler::UDPTunnel: {
-						unsigned int msgUDPType = (buff[0] >> 5) & 0x7;
-						if (msgUDPType == MessageHandler::UDPVoiceCELTAlpha)
-							rcvd++;
-						break;
-					}
+					unsigned int msgUDPType = (buff[0] >> 5) & 0x7;
+					if (msgUDPType == MessageHandler::UDPVoiceCELTAlpha)
+						rcvd++;
+					break;
+				}
 			}
 		} else {
 			break;
@@ -260,38 +269,38 @@ void Client::disconnected() {
 }
 
 class Container : public QObject {
-		Q_OBJECT
-	public:
-		int sent;
-		int numsender, numudplistener, numtcplistener;
-		int isender, iudplistener, itcplistener;
-		bool live, forceping;
-		QHostAddress qha;
-		unsigned short port;
-		QTimer qtTick;
-		Timer tickPing, tickVoice, tickGo, tickSpawn;
-		QList<Client *> speakers;
-		QList<Client *> clients;
-		Container(QHostAddress srvaddr, unsigned short port, int nsend, int nudp, int ntcp);
-	public slots:
-		void tick();
-		void go();
+	Q_OBJECT
+public:
+	int sent;
+	int numsender, numudplistener, numtcplistener;
+	int isender, iudplistener, itcplistener;
+	bool live, forceping;
+	QHostAddress qha;
+	unsigned short port;
+	QTimer qtTick;
+	Timer tickPing, tickVoice, tickGo, tickSpawn;
+	QList< Client * > speakers;
+	QList< Client * > clients;
+	Container(QHostAddress srvaddr, unsigned short port, int nsend, int nudp, int ntcp);
+public slots:
+	void tick();
+	void go();
 };
 
 Container::Container(QHostAddress qha, unsigned short port, int numsend, int numudp, int numtcp) {
 	isender = iudplistener = itcplistener = 0;
-	live = false;
-	forceping = false;
-	sent = 0;
+	live                                  = false;
+	forceping                             = false;
+	sent                                  = 0;
 
 	Timer t;
 
-	qWarning("Spawning %d speakers and %d listeners (%d UDP, %d TCP)", numsend, numudp+numtcp, numudp, numtcp);
+	qWarning("Spawning %d speakers and %d listeners (%d UDP, %d TCP)", numsend, numudp + numtcp, numudp, numtcp);
 
-	this->qha = qha;
+	this->qha  = qha;
 	this->port = port;
 
-	numsender = numsend;
+	numsender      = numsend;
 	numudplistener = numudp;
 	numtcplistener = numtcp;
 
@@ -306,34 +315,36 @@ void Container::tick() {
 	if (forceping || tickPing.isElapsed(5000000ULL)) {
 		forceping = false;
 
-		foreach(Client *c, clients)
+		for (Client *c : clients) {
 			c->ping();
+		}
 
 		if (live) {
-
-			int lost = 0;
+			int lost       = 0;
 			quint64 totrcv = 0;
-			int nrcv = 0;
-			foreach(Client *c, clients) {
-				if (! c->sender) {
+			int nrcv       = 0;
+			for (Client *c : clients) {
+				if (!c->sender) {
 					totrcv += c->rcvd;
 					lost += sent - c->rcvd;
 					nrcv++;
 				}
 			}
-			qWarning("Sent: %8d  Rcvd: %8lld  Lost: %8d   BW: %6.1fMbit/s", sent, totrcv / nrcv, (lost + nrcv - 1) / nrcv, (totrcv * 8.0 * 123.0) / (tickGo.elapsed() * 1.0));
+			qWarning("Sent: %8d  Rcvd: %8lld  Lost: %8d   BW: %6.1fMbit/s", sent, totrcv / nrcv,
+					 (lost + nrcv - 1) / nrcv, (totrcv * 8.0 * 123.0) / (tickGo.elapsed() * 1.0));
 		} else {
-			qWarning("Spawned %3d/%3d", isender + iudplistener + itcplistener, numsender + numudplistener + numtcplistener);
+			qWarning("Spawned %3d/%3d", isender + iudplistener + itcplistener,
+					 numsender + numudplistener + numtcplistener);
 		}
 	}
 
 	if (live && tickVoice.isElapsed(10000ULL)) {
-		foreach(Client *c, speakers) {
+		for (Client *c : speakers) {
 			sent++;
 			c->sendVoice();
 		}
 	}
-	if (! live) {
+	if (!live) {
 		if (isender < numsender) {
 			// Spawn a sender
 			Client *c = new Client(this, qha, port, true, false);
@@ -354,12 +365,14 @@ void Container::tick() {
 			clients << c;
 			itcplistener++;
 		} else {
-			live = true;
+			live            = true;
 			quint64 elapsed = tickSpawn.elapsed();
-			qWarning("Spawning took %lld ms (%lld us per client)", elapsed / 1000ULL, elapsed / (numsender+numudplistener+numtcplistener));
-			foreach(Client *c, clients)
+			qWarning("Spawning took %lld ms (%lld us per client)", elapsed / 1000ULL,
+					 elapsed / (numsender + numudplistener + numtcplistener));
+			for (Client *c : clients) {
 				c->rcvd = 0;
-			sent = 0;
+			}
+			sent      = 0;
 			forceping = true;
 			qtTick.start(10);
 		}
@@ -367,8 +380,9 @@ void Container::tick() {
 }
 
 void Container::go() {
-	foreach(Client *c, clients)
+	for (Client *c : clients) {
 		c->start();
+	}
 	qtTick.start(10);
 	tickGo.restart();
 }
@@ -379,11 +393,12 @@ int main(int argc, char **argv) {
 	qWarning("Maximum # sockets is %d", FD_SETSIZE);
 
 	if (argc != 6)
-		qFatal("Invalid number of arguments. These need to be passed: <host address> <port> <numsend> <numudp> <numtcp>");
+		qFatal(
+			"Invalid number of arguments. These need to be passed: <host address> <port> <numsend> <numudp> <numtcp>");
 
-	QHostAddress qha = QHostAddress(argv[1]);
-	int port = atoi(argv[2]);
-	int numsender = atoi(argv[3]);
+	QHostAddress qha   = QHostAddress(argv[1]);
+	int port           = atoi(argv[2]);
+	int numsender      = atoi(argv[3]);
 	int numudplistener = atoi(argv[4]);
 	int numtcplistener = atoi(argv[5]);
 

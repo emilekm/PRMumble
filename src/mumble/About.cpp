@@ -1,73 +1,103 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "mumble_pch.hpp"
-
 #include "About.h"
 
-#include "MainWindow.h"
 #include "License.h"
+#include "MainWindow.h"
 
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Utils.h"
+
+#include <QtWidgets/QPushButton>
+
 #include "Global.h"
+
+#define DOQUOTE(arg) #arg
+#define QUOTE(arg) DOQUOTE(arg)
 
 AboutDialog::AboutDialog(QWidget *p) : QDialog(p) {
 	setWindowTitle(tr("About Mumble"));
 
-	QTabWidget *qtwTab = new QTabWidget(this);
+	QTabWidget *qtwTab   = new QTabWidget(this);
 	QVBoxLayout *vblMain = new QVBoxLayout(this);
 
 	QTextEdit *qteLicense = new QTextEdit(qtwTab);
 	qteLicense->setReadOnly(true);
 	qteLicense->setPlainText(License::license());
+	qteLicense->setAccessibleName(tr("License agreement"));
 
-	QTextEdit *qteAuthors = new QTextEdit(qtwTab);
-	qteAuthors->setReadOnly(true);
-	qteAuthors->setPlainText(License::authors());
+	QTextBrowser *authors = new QTextBrowser(qtwTab);
+	authors->setReadOnly(true);
+	authors->setOpenExternalLinks(true);
+	authors->setText(tr("For a list of authors, please see <a "
+						"href=\"https://github.com/mumble-voip/mumble/graphs/contributors\">https://github.com/"
+						"mumble-voip/mumble/graphs/contributors</a>"));
+	authors->setAccessibleName(tr("Authors"));
 
 	QTextBrowser *qtb3rdPartyLicense = new QTextBrowser(qtwTab);
 	qtb3rdPartyLicense->setReadOnly(true);
 	qtb3rdPartyLicense->setOpenExternalLinks(true);
+	qtb3rdPartyLicense->setAccessibleName(tr("Third-party Dependencies"));
 
-	QList<LicenseInfo> thirdPartyLicenses = License::thirdPartyLicenses();
-	foreach(LicenseInfo li, thirdPartyLicenses) {
-		qtb3rdPartyLicense->append(QString::fromLatin1("<h3>%1 (<a href=\"%2\">%2</a>)</h3><pre>%3</pre>")
-				.arg(Qt::escape(li.name))
-				.arg(Qt::escape(li.url))
-				.arg(Qt::escape(li.license)));
+	QString thirdParty;
+
+	thirdParty.append("<p><i>"
+					  + tr("Depending on the build configuration, your version of Mumble might not depend on all of "
+						   "the listed entries")
+					  + "</i></p>");
+
+	thirdParty.append("<ul>");
+
+	for (const LicenseInfo &li : License::thirdPartyLicenses()) {
+		thirdParty.append(
+			QString::fromLatin1(
+				"<li>%1 (<a href=\"https://spdx.org/licenses/%2.html\">%2</a>) - <a href=\"%3\">%3</a></li>")
+				.arg(li.name.toHtmlEscaped())
+				.arg(li.licenseId.toHtmlEscaped())
+				.arg(li.url.toHtmlEscaped()));
 	}
+	thirdParty.append("</ul>");
+
+	qtb3rdPartyLicense->setHtml(thirdParty);
 
 	qtb3rdPartyLicense->moveCursor(QTextCursor::Start);
 
 	QWidget *about = new QWidget(qtwTab);
 
 	QLabel *icon = new QLabel(about);
-	icon->setPixmap(g.mw->qiIcon.pixmap(g.mw->qiIcon.actualSize(QSize(128, 128))));
+	icon->setPixmap(Global::get().mw->qiIcon.pixmap(Global::get().mw->qiIcon.actualSize(QSize(128, 128))));
 
 	QLabel *text = new QLabel(about);
-	text->setTextInteractionFlags(Qt::TextSelectableByMouse);
+	text->setTextInteractionFlags(Qt::TextBrowserInteraction);
 	text->setOpenExternalLinks(true);
-	text->setText(tr(
-	                  "<h3>Project Reality Mumble %1</h3>"
-	                  "<p>Copyright (C) %5 Project Reality<br /><tt><a href=\"%3\">%3</a></tt></p>"
-	                  "<p>Copyright %4 Thorvald Natvig<br />slicer@users.sourceforge.net</p>"
-	                  "<p><b>A voice-chat utility for gamers, customized for Project Reality</b></p>"
-	                  "<p><tt><a href=\"%3\">%3</a></tt></p>"
-	                  "<p><tt><a href=\"%2\">%2</a></tt></p>"
-        ).arg(QLatin1String(MUMBLE_RELEASE))
-         .arg(QLatin1String("http://mumble.sourceforge.net/"))
-         .arg(QLatin1String("http://www.realitymod.com/"))
-         .arg(QLatin1String("2005-2019"))
-         .arg(QLatin1String("2019")));
-	QHBoxLayout *qhbl=new QHBoxLayout(about);
+
+	QString copyrightText;
+#ifdef MUMBLE_BUILD_YEAR
+	copyrightText = "Copyright 2005-" QUOTE(MUMBLE_BUILD_YEAR) " The Mumble Developers";
+#else  // MUMBLE_BUILD_YEAR
+	copyrightText = "Copyright 2005-now The Mumble Developers";
+#endif // MUMBLE_BUILD_YEAR
+
+	QString aboutText = QString();
+	aboutText +=
+		QString("<h3>Project Reality Mumble (%1 %2)</h3>").arg(Version::getRelease()).arg(QString::fromUtf8(MUMBLE_TARGET_ARCH));
+	aboutText += QString("<p>Copyright Project Reality<br /><tt><a href=\"%1\">%1</a></tt></p>")
+					 .arg(QLatin1String("https://www.realitymod.com/"));
+	aboutText += QString("<p>%1</p>").arg(copyrightText);
+	aboutText +=
+		QString("<p><b>") + tr("A voice-chat utility for gamers, customized for Project Reality") + QString("</b></p>");
+	aboutText += QString("<p><tt><a href=\"%1\">%1</a></tt></p>").arg(QLatin1String("https://www.mumble.info/"));
+	text->setText(aboutText);
+
+	QHBoxLayout *qhbl = new QHBoxLayout(about);
 	qhbl->addWidget(icon);
 	qhbl->addWidget(text);
 
 	qtwTab->addTab(about, tr("&About PR Mumble"));
 	qtwTab->addTab(qteLicense, tr("&License"));
-	qtwTab->addTab(qteAuthors, tr("A&uthors"));
+	qtwTab->addTab(authors, tr("A&uthors"));
 	qtwTab->addTab(qtb3rdPartyLicense, tr("&Third-Party Licenses"));
 
 	QPushButton *okButton = new QPushButton(tr("OK"), this);
@@ -76,3 +106,6 @@ AboutDialog::AboutDialog(QWidget *p) : QDialog(p) {
 	vblMain->addWidget(qtwTab);
 	vblMain->addWidget(okButton);
 }
+
+#undef DOQUOTE
+#undef QUOTE

@@ -1,22 +1,20 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "mumble_pch.hpp"
-
 #include "PathListWidget.h"
 
-#include <QDragEnterEvent>
-#include <QDragMoveEvent>
-#include <QDropEvent>
-#include <QFile>
-#include <QDir>
 #include "Overlay.h"
 
-PathListWidget::PathListWidget(QWidget *parent)
-	: QListWidget(parent)
-	, pathType(FILE_EXE) {
+#include <QtCore/QDir>
+#include <QtCore/QFile>
+#include <QtCore/QMimeData>
+#include <QtGui/QDragEnterEvent>
+#include <QtGui/QDragMoveEvent>
+#include <QtGui/QDropEvent>
+
+PathListWidget::PathListWidget(QWidget *parent) : QListWidget(parent), pathType(FILE_EXE) {
 	setAcceptDrops(true);
 }
 
@@ -30,8 +28,8 @@ void PathListWidget::addFilePath(const QString &path) {
 	for (int i = 0; i < count(); i++) {
 		qslIdentifiers << item(i)->data(Qt::UserRole).toString();
 	}
-	if (! qslIdentifiers.contains(qsAppIdentifier)) {
-		OverlayAppInfo oai = OverlayAppInfo::applicationInfoForId(qsAppIdentifier);
+	if (!qslIdentifiers.contains(qsAppIdentifier)) {
+		OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(qsAppIdentifier);
 		QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, this);
 		qlwiApplication->setData(Qt::UserRole, QVariant(qsAppIdentifier));
 		setCurrentItem(qlwiApplication);
@@ -44,7 +42,7 @@ void PathListWidget::addFolderPath(const QString &path) {
 	for (int i = 0; i < count(); i++) {
 		qslIdentifiers << item(i)->data(Qt::UserRole).toString();
 	}
-	if (! dir.isEmpty() && ! qslIdentifiers.contains(dir)) {
+	if (!dir.isEmpty() && !qslIdentifiers.contains(dir)) {
 		QListWidgetItem *qlwiPath = new QListWidgetItem(QIcon(), QDir(dir).path(), this);
 		qlwiPath->setData(Qt::UserRole, QVariant(dir));
 		setCurrentItem(qlwiPath);
@@ -53,7 +51,7 @@ void PathListWidget::addFolderPath(const QString &path) {
 
 void PathListWidget::checkAcceptDragEvent(QDropEvent *event, bool store) {
 	if (event->mimeData()->hasUrls()) {
-		foreach (QUrl url, event->mimeData()->urls()) {
+		for (const QUrl &url : event->mimeData()->urls()) {
 			if (url.isLocalFile()) {
 				QFileInfo info(url.toLocalFile());
 				switch (pathType) {

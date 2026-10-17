@@ -58,13 +58,6 @@
             </spacer>
            </item>
            <item>
-            <widget class="QPushButton" name="qpbOpenAccessibilityPrefs">
-             <property name="text">
-              <string>Open Accessibility Preferences</string>
-             </property>
-            </widget>
-           </item>
-           <item>
             <widget class="QPushButton" name="qpbSkipWarning">
              <property name="text">
               <string>Skip</string>
@@ -96,6 +89,19 @@
     </widget>
    </item>
    <item>
+    <widget class="QLabel" name="qlWaylandNote">
+     <property name="text">
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mumble's Global Shortcuts system does currently not work properly in combination with the Wayland protocol. For more information, visit &lt;a href=&quot;https://github.com/mumble-voip/mumble/issues/5257&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0057ae;&quot;&gt;https://github.com/mumble-voip/mumble/issues/5257&lt;/span&gt;&lt;/a&gt;.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+     <property name="openExternalLinks">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QGroupBox" name="qgbShortcuts">
      <property name="title">
       <string>Shortcuts</string>
@@ -111,9 +117,15 @@
          </widget>
         </item>
         <item>
-         <widget class="QTreeWidget" name="qtwShortcuts">
+         <widget class="MultiColumnTreeWidget" name="qtwShortcuts">
           <property name="toolTip">
            <string>List of configured shortcuts</string>
+          </property>
+          <property name="accessibleName">
+           <string>Configured shortcuts</string>
+          </property>
+          <property name="accessibleDescription">
+           <string>Use up and down keys to navigate through your added shortcuts. Use left and right keys to navigate between actions and options for a single shortcut. Entries can be added and deleted with the buttons below.</string>
           </property>
           <property name="editTriggers">
            <set>QAbstractItemView::AllEditTriggers</set>
@@ -127,11 +139,11 @@
           <property name="uniformRowHeights">
            <bool>true</bool>
           </property>
-          <attribute name="headerDefaultSectionSize">
-           <number>100</number>
-          </attribute>
           <attribute name="headerMinimumSectionSize">
            <number>50</number>
+          </attribute>
+          <attribute name="headerDefaultSectionSize">
+           <number>100</number>
           </attribute>
           <attribute name="headerStretchLastSection">
            <bool>false</bool>
@@ -170,6 +182,12 @@
           <property name="whatsThis">
            <string>This will add a new global shortcut</string>
           </property>
+          <property name="accessibleName">
+           <string>Add unassigned shortcut</string>
+          </property>
+          <property name="accessibleDescription">
+           <string>This adds a new empty entry to the &quot;Configured Shortcut&quot; tree above. The tree will be automatically focused. Assign a key or an action by selecting the entry in the tree above.</string>
+          </property>
           <property name="text">
            <string>&amp;Add</string>
           </property>
@@ -185,6 +203,12 @@
           </property>
           <property name="whatsThis">
            <string>This will permanently remove a selected shortcut.</string>
+          </property>
+          <property name="accessibleName">
+           <string>Remove selected shortcut</string>
+          </property>
+          <property name="accessibleDescription">
+           <string>This removes the selected entry from the &quot;Configured Shortcut&quot; tree above</string>
           </property>
           <property name="text">
            <string>&amp;Remove</string>
@@ -228,16 +252,6 @@ Without this option enabled, using Mumble's global shortcuts in privileged appli
           </widget>
          </item>
          <item>
-          <widget class="QCheckBox" name="qcbEnableWinHooks">
-           <property name="whatsThis">
-            <string>&lt;b&gt;Enable Windows hooks&lt;/b&gt;.&lt;br /&gt;This enables the Windows hooks shortcut engine. Using this engine allows Mumble to suppress keypresses and mouse clicks.</string>
-           </property>
-           <property name="text">
-            <string>Enable Windows hooks</string>
-           </property>
-          </widget>
-         </item>
-         <item>
           <widget class="QCheckBox" name="qcbEnableGKey">
            <property name="whatsThis">
             <string>&lt;b&gt;Enable GKey&lt;/b&gt;.&lt;br /&gt;This setting enables support for the GKey shortcut engine, for &quot;G&quot;-keys found on Logitech keyboards.</string>
@@ -265,6 +279,13 @@ Without this option enabled, using Mumble's global shortcuts in privileged appli
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>MultiColumnTreeWidget</class>
+   <extends>QTreeWidget</extends>
+   <header>widgets/MultiColumnTreeWidget.h</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

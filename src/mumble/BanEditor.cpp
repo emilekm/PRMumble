@@ -1,52 +1,79 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "mumble_pch.hpp"
-
 #include "BanEditor.h"
 
-#include "Channel.h"
 #include "Ban.h"
+#include "Channel.h"
+#include "QtUtils.h"
 #include "ServerHandler.h"
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
 #include "Global.h"
 
-BanEditor::BanEditor(const MumbleProto::BanList &msg, QWidget *p) : QDialog(p)
-	, maskDefaultValue(32) {
+#include <cassert>
+
+#include <QtCore/QTimeZone>
+
+BanEditor::BanEditor(const MumbleProto::BanList &msg, QWidget *p) : QDialog(p), maskDefaultValue(32) {
 	setupUi(this);
+
 	qlwBans->setFocus();
 
-	qlBans.clear();
-	for (int i=0;i < msg.bans_size(); ++i) {
+	m_bans.clear();
+
+	for (int i = 0; i < msg.bans_size(); ++i) {
 		const MumbleProto::BanList_BanEntry &be = msg.bans(i);
 		Ban b;
-		b.haAddress = be.address();
-		b.iMask = be.mask();
+		b.haAddress  = be.address();
+		b.iMask      = static_cast< int >(be.mask());
 		b.qsUsername = u8(be.name());
-		b.qsHash = u8(be.hash());
-		b.qsReason = u8(be.reason());
-		b.qdtStart = QDateTime::fromString(u8(be.start()), Qt::ISODate);
+		b.qsHash     = u8(be.hash());
+		b.qsReason   = u8(be.reason());
+		b.qdtStart   = QDateTime::fromString(u8(be.start()), Qt::ISODate);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+		b.qdtStart.setTimeZone(QTimeZone::UTC);
+#else
 		b.qdtStart.setTimeSpec(Qt::UTC);
-		if (! b.qdtStart.isValid())
+#endif
+		if (!b.qdtStart.isValid()) {
 			b.qdtStart = QDateTime::currentDateTime();
+		}
+
 		b.iDuration = be.duration();
-		if (b.isValid())
-			qlBans << b;
+
+		if (b.isValid()) {
+			m_bans.insert(b);
+		}
 	}
 
 	refreshBanList();
 }
 
+std::set< Ban >::iterator BanEditor::atIndex(int idx) {
+	auto it = m_bans.begin();
+	std::advance(it, idx);
+	return it;
+}
+
+int BanEditor::indexOf(const Ban &ban) {
+	auto it = m_bans.find(ban);
+
+	if (it == m_bans.end()) {
+		return -1;
+	}
+
+	return static_cast< int >(std::distance(m_bans.begin(), it));
+}
+
 void BanEditor::accept() {
 	MumbleProto::BanList msg;
 
-	foreach(const Ban &b, qlBans) {
+	for (const Ban &b : m_bans) {
 		MumbleProto::BanList_BanEntry *be = msg.add_bans();
 		be->set_address(b.haAddress.toStdString());
-		be->set_mask(b.iMask);
+		assert(b.iMask >= 0);
+		be->set_mask(static_cast< unsigned int >(b.iMask));
 		be->set_name(u8(b.qsUsername));
 		be->set_hash(u8(b.qsHash));
 		be->set_reason(u8(b.qsReason));
@@ -54,61 +81,76 @@ void BanEditor::accept() {
 		be->set_duration(b.iDuration);
 	}
 
-	g.sh->sendMessage(msg);
+	Global::get().sh->sendMessage(msg);
 	QDialog::accept();
 }
 
 void BanEditor::on_qlwBans_currentRowChanged() {
 	int idx = qlwBans->currentRow();
-	if (idx < 0)
+	if (idx < 0) {
 		return;
+	}
 
-	qpbAdd->setDisabled(true);
+	qpbAdd->setEnabled(false);
 	qpbUpdate->setEnabled(false);
 	qpbRemove->setEnabled(true);
 
-	const Ban &ban = qlBans.at(idx);
+	const Ban &ban = *atIndex(idx);
 
 	int maskbits = ban.iMask;
 
 	const QHostAddress &addr = ban.haAddress.toAddress();
-	qleIP->setText(addr.toString());
-	if (! ban.haAddress.isV6())
-		maskbits -= 96;
+	if (ban.haAddress.isValid()) {
+		qleIP->setText(addr.toString());
+		if (!ban.haAddress.isV6()) {
+			maskbits -= BanEditor::IPV4_MASK_TO_IPV6_MASK;
+		}
+	} else {
+		qleIP->clear();
+	}
 	qsbMask->setValue(maskbits);
 	qleUser->setText(ban.qsUsername);
 	qleHash->setText(ban.qsHash);
 	qleReason->setText(ban.qsReason);
 	qdteStart->setDateTime(ban.qdtStart.toLocalTime());
 	qdteEnd->setDateTime(ban.qdtStart.toLocalTime().addSecs(ban.iDuration));
-
+	validate();
 }
 
 Ban BanEditor::toBan(bool &ok) {
 	Ban b;
+	b.haAddress = HostAddress();
+	b.iMask     = 0;
 
-	QHostAddress addr;
-
-	ok = addr.setAddress(qleIP->text());
-
-	if (ok) {
-		b.haAddress = addr;
-		b.iMask = qsbMask->value();
-		if (! b.haAddress.isV6())
-			b.iMask += 96;
-		b.qsUsername = qleUser->text();
-		b.qsHash = qleHash->text();
-		b.qsReason = qleReason->text();
-		b.qdtStart = qdteStart->dateTime().toUTC();
-		const QDateTime &qdte = qdteEnd->dateTime();
-		
-		if (qdte <= b.qdtStart)
-			b.iDuration = 0;
-		else
-			b.iDuration = static_cast<unsigned int>(b.qdtStart.secsTo(qdte));
-
-		ok = b.isValid();
+	if (!qleIP->text().isEmpty()) {
+		QHostAddress addr;
+		if (addr.setAddress(qleIP->text())) {
+			b.haAddress = addr;
+			b.iMask     = qsbMask->value();
+			if (!b.haAddress.isV6()) {
+				b.iMask += BanEditor::IPV4_MASK_TO_IPV6_MASK;
+			}
+		}
 	}
+
+	b.qsUsername          = qleUser->text();
+	b.qsHash              = qleHash->text();
+	b.qsReason            = qleReason->text();
+	b.qdtStart            = qdteStart->dateTime().toUTC();
+	const QDateTime &qdte = qdteEnd->dateTime();
+
+	if (qdte <= b.qdtStart) {
+		b.iDuration = 0;
+	} else {
+		b.iDuration = static_cast< unsigned int >(b.qdtStart.secsTo(qdte));
+	}
+
+	ok = b.isValid();
+
+	if (m_bans.contains(b)) {
+		ok = false;
+	}
+
 	return b;
 }
 
@@ -120,9 +162,9 @@ void BanEditor::on_qpbAdd_clicked() {
 	Ban b = toBan(ok);
 
 	if (ok) {
-		qlBans << b;
+		m_bans.insert(b);
 		refreshBanList();
-		qlwBans->setCurrentRow(qlBans.indexOf(b));
+		qlwBans->setCurrentRow(indexOf(b));
 	}
 
 	qlwBans->setCurrentRow(-1);
@@ -132,20 +174,28 @@ void BanEditor::on_qpbAdd_clicked() {
 void BanEditor::on_qpbUpdate_clicked() {
 	int idx = qlwBans->currentRow();
 	if (idx >= 0) {
+		const Ban &old = *atIndex(idx);
+		m_bans.erase(old);
+
 		bool ok;
 		Ban b = toBan(ok);
 		if (ok) {
-			qlBans.replace(idx, b);
-			refreshBanList();
-			qlwBans->setCurrentRow(qlBans.indexOf(b));
+			m_bans.insert(b);
+		} else {
+			m_bans.insert(old);
 		}
+
+		refreshBanList();
+		qlwBans->setCurrentRow(indexOf(b));
 	}
 }
 
 void BanEditor::on_qpbRemove_clicked() {
 	int idx = qlwBans->currentRow();
-	if (idx >= 0)
-		qlBans.removeAt(idx);
+	if (idx >= 0) {
+		const Ban &old = *atIndex(idx);
+		m_bans.erase(old);
+	}
 	refreshBanList();
 
 	qlwBans->setCurrentRow(-1);
@@ -158,34 +208,33 @@ void BanEditor::on_qpbRemove_clicked() {
 	qdteStart->setDateTime(QDateTime::currentDateTime());
 	qdteEnd->setDateTime(QDateTime::currentDateTime());
 
-	qpbRemove->setDisabled(true);
-	qpbAdd->setDisabled(true);
+	qpbRemove->setEnabled(false);
+	qpbAdd->setEnabled(false);
 }
 
 void BanEditor::refreshBanList() {
 	qlwBans->clear();
 
-	qSort(qlBans);
-
-	foreach(const Ban &ban, qlBans) {
-		const QHostAddress &addr=ban.haAddress.toAddress();
-		if (ban.qsUsername.isEmpty())
-			qlwBans->addItem(addr.toString());
-		else
+	for (const Ban &ban : m_bans) {
+		const QHostAddress &addr = ban.haAddress.toAddress();
+		if (!ban.qsUsername.isEmpty()) {
 			qlwBans->addItem(ban.qsUsername);
+		} else if (ban.haAddress.isValid()) {
+			qlwBans->addItem(addr.toString());
+		} else {
+			qlwBans->addItem(ban.qsHash);
+		}
 	}
 
-	int n = qlBans.count();
-	setWindowTitle(tr("Ban List - %n Ban(s)", "", n));
+	setWindowTitle(tr("Ban List - %n Ban(s)", "", static_cast< int >(m_bans.size())));
 }
 
-void BanEditor::on_qleSearch_textChanged(const QString & match)
-{
+void BanEditor::on_qleSearch_textChanged(const QString &match) {
 	qlwBans->clearSelection();
 
-	qpbAdd->setDisabled(true);
-	qpbUpdate->setDisabled(true);
-	qpbRemove->setDisabled(true);
+	qpbAdd->setEnabled(false);
+	qpbUpdate->setEnabled(false);
+	qpbRemove->setEnabled(false);
 
 	qleUser->clear();
 	qleIP->clear();
@@ -196,47 +245,53 @@ void BanEditor::on_qleSearch_textChanged(const QString & match)
 	qdteStart->setDateTime(QDateTime::currentDateTime());
 	qdteEnd->setDateTime(QDateTime::currentDateTime());
 
-	foreach(QListWidgetItem *item, qlwBans->findItems(QString(), Qt::MatchContains)) {
-		if (!item->text().contains(match, Qt::CaseInsensitive))
+	for (QListWidgetItem *item : qlwBans->findItems(QString(), Qt::MatchContains)) {
+		if (!item->text().contains(match, Qt::CaseInsensitive)) {
 			item->setHidden(true);
-		else
+		} else {
 			item->setHidden(false);
+		}
 	}
 }
 
-void BanEditor::on_qleIP_textChanged(QString )
-{
-	qpbAdd->setEnabled(qleIP->isModified());
-	if (qlwBans->currentRow() >= 0)
+void BanEditor::on_qleIP_textChanged(QString) {
+	if (qlwBans->currentRow() >= 0) {
 		qpbUpdate->setEnabled(qleIP->isModified());
+	}
+
+	validate();
 }
 
-void BanEditor::on_qleReason_textChanged(QString )
-{
-	if (qlwBans->currentRow() >= 0)
+void BanEditor::on_qleReason_textChanged(QString) {
+	if (qlwBans->currentRow() >= 0) {
 		qpbUpdate->setEnabled(qleReason->isModified());
+	}
+
+	validate();
 }
 
-void BanEditor::on_qdteEnd_editingFinished()
-{
-	qpbUpdate->setEnabled(!qleIP->text().isEmpty());
+void BanEditor::on_qdteEnd_editingFinished() {
+	qpbUpdate->setEnabled(true);
 	qpbRemove->setDisabled(true);
 }
 
-void BanEditor::on_qleUser_textChanged(QString )
-{
-	if (qlwBans->currentRow() >= 0)
+void BanEditor::on_qleUser_textChanged(QString) {
+	if (qlwBans->currentRow() >= 0) {
 		qpbUpdate->setEnabled(qleUser->isModified());
+	}
+
+	validate();
 }
 
-void BanEditor::on_qleHash_textChanged(QString )
-{
-	if (qlwBans->currentRow() >= 0)
+void BanEditor::on_qleHash_textChanged(QString) {
+	if (qlwBans->currentRow() >= 0) {
 		qpbUpdate->setEnabled(qleHash->isModified());
+	}
+
+	validate();
 }
 
-void BanEditor::on_qpbClear_clicked()
-{
+void BanEditor::on_qpbClear_clicked() {
 	qlwBans->setCurrentRow(-1);
 	qleUser->clear();
 	qleIP->clear();
@@ -247,7 +302,65 @@ void BanEditor::on_qpbClear_clicked()
 	qdteStart->setDateTime(QDateTime::currentDateTime());
 	qdteEnd->setDateTime(QDateTime::currentDateTime());
 
-	qpbAdd->setDisabled(true);
-	qpbUpdate->setDisabled(true);
-	qpbRemove->setDisabled(true);
+	qpbAdd->setEnabled(false);
+	qpbUpdate->setEnabled(false);
+	qpbRemove->setEnabled(false);
+}
+
+void BanEditor::validate() {
+	QString address = qleIP->text();
+	bool hasIP      = !address.isEmpty();
+	bool hasHash    = !qleHash->text().isEmpty();
+
+	qsbMask->setVisible(hasIP);
+	qlMask->setVisible(hasIP);
+
+	bool validIP = false;
+	int maxMask  = 0;
+
+	switch (QHostAddress(address).protocol()) {
+		case QAbstractSocket::IPv4Protocol:
+			validIP = true;
+			// IPv4: 8 <= mask <= 32
+			maxMask = 32;
+			break;
+		case QAbstractSocket::IPv6Protocol:
+			validIP = true;
+			// IPv6: 8 <= mask <= 128
+			maxMask = 128;
+			break;
+		default:
+			validIP = false;
+			break;
+	}
+
+	if (!validIP && hasIP) {
+		// Set red-ish background to indicate an invalid IP address
+		qleIP->setStyleSheet("background-color: #F08080;");
+	} else {
+		qleIP->setStyleSheet("");
+	}
+
+	bool validBan = hasHash || validIP;
+
+	qpbAdd->setEnabled(validBan);
+	qpbUpdate->setEnabled(qpbUpdate->isEnabled() && validBan);
+
+	// Only display the controls for setting the mask, if a valid IP address has been entered (so we know what kind of
+	// masks are valid)
+	qsbMask->setVisible(validIP);
+	qlMask->setVisible(validIP);
+
+	if (validIP) {
+		int prevMask     = qsbMask->value();
+		bool wasSetToMax = qsbMask->maximum() == prevMask;
+		qsbMask->setMaximum(maxMask);
+
+		if (wasSetToMax) {
+			// If the mask value was at its maximum value and we change from IPv4 to IPv6, we still want to set the mask
+			// to the max. value as we have to assume the user didn't explicitly modify the value (and thus we want the
+			// default, which always is the max. value).
+			qsbMask->setValue(maxMask);
+		}
+	}
 }

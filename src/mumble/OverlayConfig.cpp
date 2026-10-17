@@ -1,49 +1,51 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "mumble_pch.hpp"
-
 #include "OverlayConfig.h"
 
+#include "Channel.h"
+#include "Database.h"
+#include "MainWindow.h"
+#include "NetworkConfig.h"
 #include "Overlay.h"
-#include "OverlayUserGroup.h"
 #include "OverlayPositionableItem.h"
 #include "OverlayText.h"
-#include "User.h"
-#include "Channel.h"
-#include "Message.h"
-#include "Database.h"
-#include "NetworkConfig.h"
-#include "ServerHandler.h"
-#include "MainWindow.h"
-#include "GlobalShortcut.h"
+#include "OverlayUserGroup.h"
 #include "PathListWidget.h"
-
-// We define a global macro called 'g'. This can lead to issues when included code uses 'g' as a type or parameter name (like protobuf 3.7 does). As such, for now, we have to make this our last include.
+#include "Screen.h"
+#include "ServerHandler.h"
+#include "User.h"
 #include "Global.h"
+#include "GlobalShortcut.h"
 
 #ifdef Q_OS_WIN
-#include "../../overlay/overlay_launchers.h"
-#include "../../overlay/overlay_whitelist.h"
-#include "../../overlay/overlay_blacklist.h"
+#	include "../../overlay/overlay_blacklist.h"
+#	include "../../overlay/overlay_launchers.h"
+#	include "../../overlay/overlay_whitelist.h"
 #endif
 
-static const int OVERLAYCONFIG_PATH_ROLE = Qt::UserRole;
+#include <QSettings>
+#include <QtGui/QScreen>
+#include <QtGui/QWindow>
+#include <QtWidgets/QColorDialog>
+#include <QtWidgets/QFileDialog>
+#include <QtWidgets/QFontDialog>
+
+const QString OverlayConfig::name = QLatin1String("OverlayConfig");
+
+static const int OVERLAYCONFIG_PATH_ROLE    = Qt::UserRole;
 static const int OVERLAYCONFIG_BUILTIN_ROLE = Qt::UserRole + 1;
 
 // Hide overlay config for Mac OS X universal builds
 #if !defined(USE_MAC_UNIVERSAL)
-static ConfigWidget *OverlayConfigDialogNew(Settings &st) {
+[[maybe_unused]] static ConfigWidget *OverlayConfigDialogNew(Settings &st) {
 	return new OverlayConfig(st);
 }
-#endif
 
-// Hide overlay config for Mac OS X universal builds
-// Hide the overlay for Project Reality...
-#if !(defined(Q_OS_MAC) && !defined(QT_MAC_USE_COCOA))
-// static ConfigRegistrar registrar(6000, OverlayConfigDialogNew);
+// The overlay config page is hidden in PRMumble.
+// static ConfigRegistrar registrarOverlayConfig(6000, OverlayConfigDialogNew);
 #endif
 
 void OverlayConfig::initDisplayFps() {
@@ -82,11 +84,10 @@ void OverlayConfig::initDisplay() {
 	initDisplayClock();
 
 	qgtiInstructions = new QGraphicsTextItem();
-	qgtiInstructions->setHtml(QString::fromLatin1("<ul><li>%1</li><li>%2</li><li>%3</li></ul>").arg(
-	                              tr("To move the users, drag the little red dot."),
-	                              tr("To resize the users, mouse wheel over a user."),
-	                              tr("For more options, right click a user.")
-	                          ));
+	qgtiInstructions->setHtml(QString::fromLatin1("<ul><li>%1</li><li>%2</li><li>%3</li></ul>")
+								  .arg(tr("To move the users, drag the little red dot."),
+									   tr("To resize the users, mouse wheel over a user."),
+									   tr("For more options, right click a user.")));
 	qgtiInstructions->setOpacity(1.0f);
 	qgtiInstructions->setZValue(-5.0f);
 	qgtiInstructions->setDefaultTextColor(Qt::white);
@@ -104,7 +105,7 @@ void OverlayConfig::initDisplay() {
 	qgs.addItem(qgpiTimeLive);
 	qgpiTimeLive->show();
 
-	oug = new OverlayUserGroup(&s.os);
+	oug                = new OverlayUserGroup(&s.os);
 	oug->bShowExamples = true;
 	qgs.addItem(oug);
 	oug->show();
@@ -135,7 +136,8 @@ void OverlayConfig::refreshFpsLive() {
 
 void OverlayConfig::refreshTimeLive() {
 	if (s.os.bTime) {
-		bpTimeDemo = OverlayTextLine(QString::fromLatin1("%1").arg(QTime::currentTime().toString()), s.os.qfFps).createPixmap(s.os.qcFps);
+		bpTimeDemo = OverlayTextLine(QString::fromLatin1("%1").arg(QTime::currentTime().toString()), s.os.qfFps)
+						 .createPixmap(s.os.qcFps);
 		qgpiTimeLive->setPixmap(bpTimeDemo.scaled(bpTimeDemo.size() * fViewScale));
 		qgpiTimeLive->setOffset((-bpTimeDemo.qpBasePoint + QPoint(0, bpTimeDemo.iAscent)) * fViewScale);
 	} else {
@@ -144,25 +146,20 @@ void OverlayConfig::refreshTimeLive() {
 	qgpiTimeLive->setItemVisible(s.os.bTime);
 }
 
-OverlayConfig::OverlayConfig(Settings &st) :
-		ConfigWidget(st),
-		qgpiScreen(NULL),
-		qgs(),
-		qgsFpsPreview(),
-		qgpiFpsDemo(NULL),
-		oug(NULL),
-		qgtiInstructions(NULL),
-		fViewScale(1.0f) {
+OverlayConfig::OverlayConfig(Settings &st)
+	: ConfigWidget(st), qgpiScreen(nullptr), qgs(), qgsFpsPreview(), qgpiFpsDemo(nullptr), oug(nullptr),
+	  qgtiInstructions(nullptr), fViewScale(1.0f) {
 	setupUi(this);
 
 	qlwPaths->setPathType(PathListWidget::FOLDER);
 
-	qcbOverlayExclusionMode->insertItem(static_cast<int>(OverlaySettings::LauncherFilterExclusionMode), tr("Launcher Filter"));
-	qcbOverlayExclusionMode->insertItem(static_cast<int>(OverlaySettings::WhitelistExclusionMode), tr("Whitelist"));
-	qcbOverlayExclusionMode->insertItem(static_cast<int>(OverlaySettings::BlacklistExclusionMode), tr("Blacklist"));
-	qcbOverlayExclusionMode->setCurrentIndex(static_cast<int>(OverlaySettings::LauncherFilterExclusionMode));
+	qcbOverlayExclusionMode->insertItem(static_cast< int >(OverlaySettings::LauncherFilterExclusionMode),
+										tr("Launcher Filter"));
+	qcbOverlayExclusionMode->insertItem(static_cast< int >(OverlaySettings::WhitelistExclusionMode), tr("Whitelist"));
+	qcbOverlayExclusionMode->insertItem(static_cast< int >(OverlaySettings::BlacklistExclusionMode), tr("Blacklist"));
+	qcbOverlayExclusionMode->setCurrentIndex(static_cast< int >(OverlaySettings::LauncherFilterExclusionMode));
 
-	if (! isInstalled()) {
+	if (!isInstalled()) {
 		qswOverlayPage->setCurrentWidget(qwOverlayInstall);
 	} else if (needsUpgrade()) {
 		qswOverlayPage->setCurrentWidget(qwOverlayUpgrade);
@@ -171,26 +168,31 @@ OverlayConfig::OverlayConfig(Settings &st) :
 		qpbUninstall->setVisible(supportsInstallableOverlay());
 	}
 
-	// grab a desktop screenshot as background
-	QRect dsg = QApplication::desktop()->screenGeometry();
+	// Grab a desktop screenshot as background
+	QScreen *screen = qApp->primaryScreen();
 
-#if QT_VERSION > 0x050000
-	qpScreen = QGuiApplication::primaryScreen()->grabWindow(QApplication::desktop()->winId());
-#else
-	qpScreen = QPixmap::grabWindow(QApplication::desktop()->winId(), dsg.x(), dsg.y(), dsg.width(), dsg.height());
-#endif
+	if (const QWindow *window = windowHandle()) {
+		screen = window->screen();
+	}
+
+	// From Qt's documentation (Qt Widgets screenshot example):
+	// "Although this is unlikely to happen, applications should check for null
+	// pointers since there might be situations in which no screen is connected."
+	if (screen) {
+		qpScreen = screen->grabWindow(0);
+	}
+
 	if (qpScreen.size().isEmpty()) {
-		qWarning() << __FUNCTION__ << "failed to grab desktop image, trying desktop widget...";
+		qWarning() << __FUNCTION__ << "failed to grab screenshot, falling back.";
 
-		qpScreen = QPixmap::grabWidget(QApplication::desktop(), dsg);
-
-		if (qpScreen.size().isEmpty()) {
-			qWarning() << __FUNCTION__ << "failed to grab desktop widget image, falling back.";
-
-			QRect desktop_size = QApplication::desktop()->screenGeometry();
-			qpScreen = QPixmap(desktop_size.width(), desktop_size.height());
-			qpScreen.fill(Qt::darkGreen);
+		if (screen) {
+			const QRect desktopSize = screen->geometry();
+			qpScreen                = QPixmap(desktopSize.width(), desktopSize.height());
+		} else {
+			qpScreen = QPixmap(1280, 720);
 		}
+
+		qpScreen.fill(Qt::darkGreen);
 	}
 
 	initDisplay();
@@ -202,7 +204,8 @@ OverlayConfig::OverlayConfig(Settings &st) :
 }
 
 void OverlayConfig::updateOverlayExclusionModeState() {
-	OverlaySettings::OverlayExclusionMode exclusionMode = static_cast<OverlaySettings::OverlayExclusionMode>(qcbOverlayExclusionMode->currentIndex());
+	OverlaySettings::OverlayExclusionMode exclusionMode =
+		static_cast< OverlaySettings::OverlayExclusionMode >(qcbOverlayExclusionMode->currentIndex());
 
 	switch (exclusionMode) {
 		case OverlaySettings::LauncherFilterExclusionMode:
@@ -229,7 +232,7 @@ void OverlayConfig::updateOverlayExclusionModeState() {
 			// They are only considered in launcher filter mode.
 			for (int i = 0; i < qlwWhitelist->count(); i++) {
 				QListWidgetItem *item = qlwWhitelist->item(i);
-				bool isBuiltin = item->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool();
+				bool isBuiltin        = item->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool();
 				if (isBuiltin) {
 					item->setHidden(true);
 				} else {
@@ -255,7 +258,7 @@ void OverlayConfig::load(const Settings &r) {
 	qcbShowTime->setChecked(s.os.bTime);
 	qgpFps->setEnabled(s.os.bEnable);
 
-	qcbOverlayExclusionMode->setCurrentIndex(static_cast<int>(s.os.oemOverlayExcludeMode));
+	qcbOverlayExclusionMode->setCurrentIndex(static_cast< int >(s.os.oemOverlayExcludeMode));
 
 	// Launchers
 	{
@@ -270,8 +273,8 @@ void OverlayConfig::load(const Settings &r) {
 			++i;
 		}
 #endif
-		foreach (QString str, builtinLaunchers) {
-			OverlayAppInfo oai = OverlayAppInfo::applicationInfoForId(str);
+		for (const QString &str : builtinLaunchers) {
+			OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(str);
 			QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, qlwLaunchers);
 			qlwiApplication->setData(OVERLAYCONFIG_PATH_ROLE, QVariant(str));
 			qlwiApplication->setData(OVERLAYCONFIG_BUILTIN_ROLE, QVariant(true));
@@ -290,11 +293,11 @@ void OverlayConfig::load(const Settings &r) {
 			}
 		}
 
-		foreach(QString str, s.os.qslLaunchers) {
+		for (const QString &str : s.os.qslLaunchers) {
 			if (builtinLaunchers.contains(str)) {
 				continue;
 			}
-			OverlayAppInfo oai = OverlayAppInfo::applicationInfoForId(str);
+			OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(str);
 			QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, qlwLaunchers);
 			qlwiApplication->setData(OVERLAYCONFIG_PATH_ROLE, QVariant(str));
 			qlwiApplication->setData(OVERLAYCONFIG_BUILTIN_ROLE, QVariant(false));
@@ -314,8 +317,8 @@ void OverlayConfig::load(const Settings &r) {
 			++i;
 		}
 #endif
-		foreach (QString str, builtinWhitelist) {
-			OverlayAppInfo oai = OverlayAppInfo::applicationInfoForId(str);
+		for (const QString &str : builtinWhitelist) {
+			OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(str);
 			QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, qlwWhitelist);
 			qlwiApplication->setData(OVERLAYCONFIG_PATH_ROLE, QVariant(str));
 			qlwiApplication->setData(OVERLAYCONFIG_BUILTIN_ROLE, QVariant(true));
@@ -334,11 +337,11 @@ void OverlayConfig::load(const Settings &r) {
 			}
 		}
 
-		foreach(QString str, s.os.qslWhitelist) {
+		for (const QString &str : s.os.qslWhitelist) {
 			if (builtinWhitelist.contains(str)) {
 				continue;
 			}
-			OverlayAppInfo oai = OverlayAppInfo::applicationInfoForId(str);
+			OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(str);
 			QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, qlwWhitelist);
 			qlwiApplication->setData(OVERLAYCONFIG_PATH_ROLE, QVariant(str));
 			qlwiApplication->setData(OVERLAYCONFIG_BUILTIN_ROLE, QVariant(false));
@@ -349,7 +352,7 @@ void OverlayConfig::load(const Settings &r) {
 	{
 		qlwPaths->clear();
 
-		foreach(QString str, s.os.qslPaths) {
+		for (const QString &str : s.os.qslPaths) {
 			QListWidgetItem *qlwiApplication = new QListWidgetItem(QIcon(), str, qlwPaths);
 			qlwiApplication->setData(OVERLAYCONFIG_PATH_ROLE, QVariant(str));
 			qlwiApplication->setData(OVERLAYCONFIG_BUILTIN_ROLE, QVariant(false));
@@ -369,8 +372,8 @@ void OverlayConfig::load(const Settings &r) {
 			++i;
 		}
 #endif
-		foreach (QString str, builtinBlacklist) {
-			OverlayAppInfo oai = OverlayAppInfo::applicationInfoForId(str);
+		for (const QString &str : builtinBlacklist) {
+			OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(str);
 			QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, qlwBlacklist);
 			qlwiApplication->setData(OVERLAYCONFIG_PATH_ROLE, QVariant(str));
 			qlwiApplication->setData(OVERLAYCONFIG_BUILTIN_ROLE, QVariant(true));
@@ -389,11 +392,11 @@ void OverlayConfig::load(const Settings &r) {
 			}
 		}
 
-		foreach(QString str, s.os.qslBlacklist) {
+		for (const QString &str : s.os.qslBlacklist) {
 			if (builtinBlacklist.contains(str)) {
 				continue;
 			}
-			OverlayAppInfo oai = OverlayAppInfo::applicationInfoForId(str);
+			OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(str);
 			QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, qlwBlacklist);
 			qlwiApplication->setData(OVERLAYCONFIG_PATH_ROLE, QVariant(str));
 			qlwiApplication->setData(OVERLAYCONFIG_BUILTIN_ROLE, QVariant(false));
@@ -409,18 +412,21 @@ QString OverlayConfig::title() const {
 	return tr("Overlay");
 }
 
+const QString &OverlayConfig::getName() const {
+	return OverlayConfig::name;
+}
+
 QIcon OverlayConfig::icon() const {
 	return QIcon(QLatin1String("skin:config_osd.png"));
 }
 
 void OverlayConfig::save() const {
 	s.os.bEnable = qcbEnable->isChecked();
-	s.os.bFps = qcbShowFps->isChecked();
-	s.os.bTime = qcbShowTime->isChecked();
+	s.os.bFps    = qcbShowFps->isChecked();
+	s.os.bTime   = qcbShowTime->isChecked();
 
-	// Directly save overlay config
-
-	s.os.oemOverlayExcludeMode = static_cast<OverlaySettings::OverlayExclusionMode>(qcbOverlayExclusionMode->currentIndex());
+	s.os.oemOverlayExcludeMode =
+		static_cast< OverlaySettings::OverlayExclusionMode >(qcbOverlayExclusionMode->currentIndex());
 
 	// Launchers
 	{
@@ -521,19 +527,11 @@ void OverlayConfig::save() const {
 			}
 		}
 	}
-
-	g.qs->beginGroup(QLatin1String("overlay"));
-	s.os.save();
-	g.qs->endGroup();
-#ifdef Q_OS_WIN
-	// On MS windows force sync so the registry is updated.
-	g.qs->sync();
-#endif
 }
 
 void OverlayConfig::accept() const {
-	g.o->forceSettings();
-	g.o->setActive(s.os.bEnable);
+	Global::get().o->forceSettings();
+	Global::get().o->setActive(s.os.bEnable);
 }
 
 bool OverlayConfig::eventFilter(QObject *obj, QEvent *evt) {
@@ -554,7 +552,7 @@ void OverlayConfig::resizeScene(bool force) {
 	qgpiScreen->setPixmap(qpScreen.scaled(sz, Qt::KeepAspectRatio, Qt::SmoothTransformation));
 	qgs.setSceneRect(QRectF(0, 0, qgpiScreen->pixmap().width(), qgpiScreen->pixmap().height()));
 
-	fViewScale = static_cast<float>(qgpiScreen->pixmap().height()) / static_cast<float>(qpScreen.height());
+	fViewScale = static_cast< float >(qgpiScreen->pixmap().height()) / static_cast< float >(qpScreen.height());
 	refreshFpsLive();
 	refreshTimeLive();
 
@@ -574,14 +572,14 @@ void OverlayConfig::resizeScene(bool force) {
 }
 
 void OverlayConfig::on_qlwLaunchers_itemSelectionChanged() {
-	QList<QListWidgetItem *> items = qlwLaunchers->selectedItems();
+	QList< QListWidgetItem * > items = qlwLaunchers->selectedItems();
 	if (items.isEmpty()) {
 		qpbLaunchersRemove->setEnabled(false);
 		return;
 	}
 
 	QListWidgetItem *item = items.at(0);
-	bool isBuiltin = item->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool();
+	bool isBuiltin        = item->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool();
 
 	if (isBuiltin) {
 		qpbLaunchersRemove->setEnabled(false);
@@ -603,13 +601,13 @@ void OverlayConfig::on_qpbLaunchersAdd_clicked() {
 	QString file = QString();
 #endif
 
-	if (! file.isEmpty()) {
+	if (!file.isEmpty()) {
 		QString qsAppIdentifier = OverlayAppInfo::applicationIdentifierForPath(file);
 		QStringList qslIdentifiers;
 		for (int i = 0; i < qlwLaunchers->count(); i++)
 			qslIdentifiers << qlwLaunchers->item(i)->data(Qt::UserRole).toString();
-		if (! qslIdentifiers.contains(qsAppIdentifier)) {
-			OverlayAppInfo oai = OverlayAppInfo::applicationInfoForId(qsAppIdentifier);
+		if (!qslIdentifiers.contains(qsAppIdentifier)) {
+			OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(qsAppIdentifier);
 			QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, qlwLaunchers);
 			qlwiApplication->setData(Qt::UserRole, QVariant(qsAppIdentifier));
 			qlwLaunchers->setCurrentItem(qlwiApplication);
@@ -624,14 +622,14 @@ void OverlayConfig::on_qpbLaunchersRemove_clicked() {
 }
 
 void OverlayConfig::on_qlwWhitelist_itemSelectionChanged() {
-	QList<QListWidgetItem *> items = qlwWhitelist->selectedItems();
+	QList< QListWidgetItem * > items = qlwWhitelist->selectedItems();
 	if (items.isEmpty()) {
 		qpbWhitelistRemove->setEnabled(false);
 		return;
 	}
 
 	QListWidgetItem *item = items.at(0);
-	bool isBuiltin = item->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool();
+	bool isBuiltin        = item->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool();
 
 	if (isBuiltin) {
 		qpbWhitelistRemove->setEnabled(false);
@@ -642,12 +640,12 @@ void OverlayConfig::on_qlwWhitelist_itemSelectionChanged() {
 
 void OverlayConfig::addWhitelistPath(const QString &path) {
 	QString qsAppIdentifier = OverlayAppInfo::applicationIdentifierForPath(path);
-	QListWidget *sel = qlwWhitelist;
+	QListWidget *sel        = qlwWhitelist;
 	QStringList qslIdentifiers;
 	for (int i = 0; i < sel->count(); i++)
 		qslIdentifiers << sel->item(i)->data(Qt::UserRole).toString();
-	if (! qslIdentifiers.contains(qsAppIdentifier)) {
-		OverlayAppInfo oai = OverlayAppInfo::applicationInfoForId(qsAppIdentifier);
+	if (!qslIdentifiers.contains(qsAppIdentifier)) {
+		OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(qsAppIdentifier);
 		QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, sel);
 		qlwiApplication->setData(Qt::UserRole, QVariant(qsAppIdentifier));
 		sel->setCurrentItem(qlwiApplication);
@@ -663,27 +661,27 @@ void OverlayConfig::on_qpbWhitelistAdd_clicked() {
 	QString file = QString();
 #endif
 
-	if (! file.isEmpty()) {
+	if (!file.isEmpty()) {
 		addWhitelistPath(file);
 	}
 }
 
 void OverlayConfig::on_qpbWhitelistRemove_clicked() {
 	QListWidget *sel = qlwWhitelist;
-	int row = sel->currentRow();
+	int row          = sel->currentRow();
 	if (row != -1)
 		delete sel->takeItem(row);
 }
 
 void OverlayConfig::on_qlwPaths_itemSelectionChanged() {
-	QList<QListWidgetItem *> items = qlwPaths->selectedItems();
+	QList< QListWidgetItem * > items = qlwPaths->selectedItems();
 	if (items.isEmpty()) {
 		qpbPathsRemove->setEnabled(false);
 		return;
 	}
 
 	QListWidgetItem *item = items.at(0);
-	bool isBuiltin = item->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool();
+	bool isBuiltin        = item->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool();
 
 	if (isBuiltin) {
 		qpbPathsRemove->setEnabled(false);
@@ -694,13 +692,13 @@ void OverlayConfig::on_qlwPaths_itemSelectionChanged() {
 
 void OverlayConfig::on_qpbPathsAdd_clicked() {
 	QString existingPath = QFileDialog::getExistingDirectory(this, tr("Choose path"));
-	QString dir = QDir::toNativeSeparators(existingPath);
+	QString dir          = QDir::toNativeSeparators(existingPath);
 
 	QListWidget *sel = qlwPaths;
 	QStringList qslIdentifiers;
 	for (int i = 0; i < sel->count(); i++)
 		qslIdentifiers << sel->item(i)->data(Qt::UserRole).toString();
-	if (! dir.isEmpty() && ! qslIdentifiers.contains(dir)) {
+	if (!dir.isEmpty() && !qslIdentifiers.contains(dir)) {
 		QListWidgetItem *qlwiPath = new QListWidgetItem(QIcon(), dir, sel);
 		qlwiPath->setData(Qt::UserRole, QVariant(dir));
 		sel->setCurrentItem(qlwiPath);
@@ -714,14 +712,14 @@ void OverlayConfig::on_qpbPathsRemove_clicked() {
 }
 
 void OverlayConfig::on_qlwBlacklist_itemSelectionChanged() {
-	QList<QListWidgetItem *> items = qlwBlacklist->selectedItems();
+	QList< QListWidgetItem * > items = qlwBlacklist->selectedItems();
 	if (items.isEmpty()) {
 		qpbBlacklistRemove->setEnabled(false);
 		return;
 	}
 
 	QListWidgetItem *item = items.at(0);
-	bool isBuiltin = item->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool();
+	bool isBuiltin        = item->data(OVERLAYCONFIG_BUILTIN_ROLE).toBool();
 
 	if (isBuiltin) {
 		qpbBlacklistRemove->setEnabled(false);
@@ -739,14 +737,14 @@ void OverlayConfig::on_qpbBlacklistAdd_clicked() {
 	QString file = QString();
 #endif
 
-	if (! file.isEmpty()) {
+	if (!file.isEmpty()) {
 		QString qsAppIdentifier = OverlayAppInfo::applicationIdentifierForPath(file);
-		QListWidget *sel = qlwBlacklist;
+		QListWidget *sel        = qlwBlacklist;
 		QStringList qslIdentifiers;
 		for (int i = 0; i < sel->count(); i++)
 			qslIdentifiers << sel->item(i)->data(Qt::UserRole).toString();
-		if (! qslIdentifiers.contains(qsAppIdentifier)) {
-			OverlayAppInfo oai = OverlayAppInfo::applicationInfoForId(qsAppIdentifier);
+		if (!qslIdentifiers.contains(qsAppIdentifier)) {
+			OverlayAppInfo oai               = OverlayAppInfo::applicationInfoForId(qsAppIdentifier);
 			QListWidgetItem *qlwiApplication = new QListWidgetItem(oai.qiIcon, oai.qsDisplayName, sel);
 			qlwiApplication->setData(Qt::UserRole, QVariant(qsAppIdentifier));
 			sel->setCurrentItem(qlwiApplication);
@@ -756,7 +754,7 @@ void OverlayConfig::on_qpbBlacklistAdd_clicked() {
 
 void OverlayConfig::on_qpbBlacklistRemove_clicked() {
 	QListWidget *sel = qlwBlacklist;
-	int row = sel->currentRow();
+	int row          = sel->currentRow();
 	if (row != -1)
 		delete sel->takeItem(row);
 }
@@ -776,7 +774,6 @@ void OverlayConfig::on_qpbInstall_clicked() {
 }
 
 void OverlayConfig::on_qpbUninstall_clicked() {
-
 	qpbUninstall->setEnabled(false);
 
 	if (uninstallFiles()) {
@@ -824,65 +821,52 @@ void OverlayConfig::on_qpbFpsColor_clicked() {
 }
 
 void OverlayConfig::on_qpbLoadPreset_clicked() {
-	QString fn = QFileDialog::getOpenFileName(this,
-	             tr("Load Overlay Presets"),
-	             QDir::homePath(),
-	             tr("Mumble overlay presets (*.mumblelay)"));
+	QString fn = QFileDialog::getOpenFileName(this, tr("Load Overlay Presets"), QDir::homePath(),
+											  tr("Mumble overlay presets (*.mumblelay)"));
 
 	if (fn.isEmpty()) {
 		return;
 	}
 
-	QSettings qs(fn, QSettings::IniFormat);
 	OverlaySettings load_preset;
+	try {
+		// First try regular format
+		load_preset.load(fn);
+	} catch (const std::exception &) {
+		// If that fails, fall back to the legacy format
+		QSettings qs(fn, QSettings::IniFormat);
 
-	qs.beginGroup(QLatin1String("overlay"));
-	load_preset.load(&qs);
-	qs.endGroup();
+		qs.beginGroup(QLatin1String("overlay"));
+		load_preset.legacyLoad(&qs);
+		qs.endGroup();
+	}
 
 #ifdef Q_OS_WIN
-	load_preset.qslLaunchers = s.os.qslLaunchers;
+	load_preset.qslLaunchers        = s.os.qslLaunchers;
 	load_preset.qslLaunchersExclude = s.os.qslLaunchersExclude;
 
-	load_preset.qslWhitelist = s.os.qslWhitelist;
+	load_preset.qslWhitelist        = s.os.qslWhitelist;
 	load_preset.qslWhitelistExclude = s.os.qslWhitelistExclude;
 
-	load_preset.qslPaths = s.os.qslPaths;
+	load_preset.qslPaths        = s.os.qslPaths;
 	load_preset.qslPathsExclude = s.os.qslPathsExclude;
 
-	load_preset.qslBlacklist = s.os.qslBlacklist;
+	load_preset.qslBlacklist        = s.os.qslBlacklist;
 	load_preset.qslBlacklistExclude = s.os.qslBlacklistExclude;
 #endif
 	load_preset.bEnable = s.os.bEnable;
-	s.os = load_preset;
+	s.os                = load_preset;
 
 	load(s);
 }
 
 void OverlayConfig::on_qpbSavePreset_clicked() {
-	QString fn = QFileDialog::getSaveFileName(this,
-	             tr("Save Overlay Presets"),
-	             QDir::homePath(),
-	             tr("Mumble overlay presets (*.mumblelay)"));
+	QString fn = QFileDialog::getSaveFileName(this, tr("Save Overlay Presets"), QDir::homePath(),
+											  tr("Mumble overlay presets (*.mumblelay)"));
 
 	if (fn.isEmpty()) {
 		return;
 	}
 
-	QSettings qs(fn, QSettings::IniFormat);
-
-	if (!qs.isWritable()) {
-		qWarning() << __FUNCTION__ << "preset save file" << fn << "is not writable!";
-		return;
-	}
-
-	qs.beginGroup(QLatin1String("overlay"));
-	s.os.save(&qs);
-	qs.remove(QLatin1String("enable"));
-	qs.remove(QLatin1String("usewhitelist"));
-	qs.remove(QLatin1String("blacklist"));
-	qs.remove(QLatin1String("whitelist"));
-	qs.remove(QLatin1String("enablelauncherfilter"));
-	qs.remove(QLatin1String("launchers"));
-	qs.endGroup();
+	s.os.savePresets(fn);
 }

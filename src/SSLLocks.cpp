@@ -1,13 +1,18 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
-#include "murmur_pch.h"
-
 #include "SSLLocks.h"
 
-static QMutex **locks = NULL;
+#include <QtCore/QMutex>
+#include <QtCore/QThread>
+
+#include <openssl/crypto.h>
+
+#include <cassert>
+
+static QMutex **locks = nullptr;
 
 void locking_callback(int mode, int type, const char *, int) {
 	if (mode & CRYPTO_LOCK) {
@@ -39,15 +44,16 @@ unsigned long id_callback() {
 	// convert to that without the compiler complaining. Then, we convert
 	// *that* to an unsigned long. (Note that for LLP64 platforms, such as
 	// 64-bit Windows, this conversion is from a 64-bit type to a 32-bit type)
-	uintptr_t val = reinterpret_cast<uintptr_t>(QThread::currentThreadId());
-	return static_cast<unsigned long>(val);
+	uintptr_t val = reinterpret_cast< uintptr_t >(QThread::currentThreadId());
+	return static_cast< unsigned long >(val);
 }
 
 void SSLLocks::initialize() {
 	int nlocks = CRYPTO_num_locks();
+	assert(nlocks >= 0);
 
-	locks = reinterpret_cast<QMutex **>(calloc(nlocks, sizeof(QMutex *)));
-	if (locks == NULL) {
+	locks = reinterpret_cast< QMutex ** >(calloc(static_cast< std::size_t >(nlocks), sizeof(void *)));
+	if (!locks) {
 		qFatal("SSLLocks: unable to allocate locks array");
 
 		// This initializer is called early during program
@@ -57,7 +63,7 @@ void SSLLocks::initialize() {
 		exit(1);
 	}
 
-	for (int i = 0; i < nlocks; i++) {
+	for (unsigned int i = 0; i < static_cast< std::size_t >(nlocks); i++) {
 		locks[i] = new QMutex;
 	}
 
@@ -68,12 +74,12 @@ void SSLLocks::initialize() {
 void SSLLocks::destroy() {
 	// If SSLLocks was never initialized, or has been destroyed already,
 	// don't try to do it again.
-	if (locks == NULL) {
+	if (!locks) {
 		return;
 	}
 
-	CRYPTO_set_locking_callback(NULL);
-	CRYPTO_set_id_callback(NULL);
+	CRYPTO_set_locking_callback(nullptr);
+	CRYPTO_set_id_callback(nullptr);
 
 	int nlocks = CRYPTO_num_locks();
 	for (int i = 0; i < nlocks; i++) {
@@ -81,5 +87,5 @@ void SSLLocks::destroy() {
 	}
 
 	free(locks);
-	locks = NULL;
+	locks = nullptr;
 }

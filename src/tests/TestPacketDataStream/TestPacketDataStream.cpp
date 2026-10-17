@@ -1,32 +1,37 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
+#include "PacketDataStream.h"
+
+#include <QObject>
 #include <QtCore>
 #include <QtNetwork>
 #include <QtTest>
-#include <QObject>
-#include "PacketDataStream.h"
-#include "Message.h"
+
+#include <algorithm>
+#include <array>
+#include <cstdint>
 
 class TestPacketDataStream : public QObject {
-		Q_OBJECT
-	private slots:
-		void integer();
-		void integer_data();
-		void string();
-		void string_data();
-		void space();
-		void floating();
-		void floating_data();
-		void undersize();
+	Q_OBJECT
+private slots:
+	void integer();
+	void integer_data();
+	void string();
+	void string_data();
+	void space();
+	void floating();
+	void floating_data();
+	void undersize();
+	void recursive();
 };
 
 void TestPacketDataStream::floating_data() {
-	QTest::addColumn<double>("value");
-	for (int i=1;i<256;i++) {
-		double v = 1.0L / (1.0L * i);
+	QTest::addColumn< double >("value");
+	for (int i = 1; i < 256; i++) {
+		double v = 1.0 / (1.0 * i);
 		QTest::newRow("Positive") << v;
 		QTest::newRow("Negative") << -v;
 	}
@@ -51,11 +56,11 @@ void TestPacketDataStream::undersize() {
 	QByteArray qba(32, 'Z');
 	char buff[256];
 
-	for (unsigned int i=0;i<32;i++) {
+	for (unsigned int i = 0; i < 32; i++) {
 		PacketDataStream out(buff, i);
 		out << qba;
-		QCOMPARE(33-i, out.undersize());
-		QVERIFY(! out.isValid());
+		QCOMPARE(33 - i, out.undersize());
+		QVERIFY(!out.isValid());
 		QVERIFY(out.left() == 0);
 	}
 	PacketDataStream out(buff, 33);
@@ -66,8 +71,8 @@ void TestPacketDataStream::undersize() {
 }
 
 void TestPacketDataStream::integer_data() {
-	QTest::addColumn<quint64>("value");
-	for (int i=0;i<64;i++) {
+	QTest::addColumn< quint64 >("value");
+	for (int i = 0; i < 64; i++) {
 		quint64 v = 1ULL << i;
 		QTest::newRow("Integer") << v;
 		QTest::newRow("~Integer") << ~v;
@@ -90,7 +95,7 @@ void TestPacketDataStream::integer() {
 }
 
 void TestPacketDataStream::string_data() {
-	QTest::addColumn<QString>("string");
+	QTest::addColumn< QString >("string");
 	QTest::newRow("Empty") << QString("");
 	QTest::newRow("Null") << QString();
 	QTest::newRow("Bærtur") << QString("Bærtur");
@@ -113,12 +118,12 @@ void TestPacketDataStream::string() {
 
 void TestPacketDataStream::space() {
 	char buff[256];
-	for (int i=0;i<256;i++)
-		buff[i]= 0x55;
+	for (int i = 0; i < 256; i++)
+		buff[i] = 0x55;
 
 	PacketDataStream out(buff, 1);
 
-	char val = -2;
+	signed char val = -2;
 
 	out << val;
 	QVERIFY(out.isValid());
@@ -128,14 +133,14 @@ void TestPacketDataStream::space() {
 
 	out << val;
 
-	QVERIFY(! out.isValid());
+	QVERIFY(!out.isValid());
 	QVERIFY(out.size() == 1);
 	QVERIFY(out.left() == 0);
 	QVERIFY(buff[1] == 0x55);
 
 	PacketDataStream in(buff, 1);
 
-	char v;
+	signed char v;
 
 	in >> v;
 	QCOMPARE(v, val);
@@ -144,9 +149,29 @@ void TestPacketDataStream::space() {
 	QVERIFY(in.left() == 0);
 
 	in >> v;
-	QVERIFY(! in.isValid());
+	QVERIFY(!in.isValid());
 	QVERIFY(in.size() == 1);
 	QVERIFY(in.left() == 0);
+}
+
+void TestPacketDataStream::recursive() {
+	// A buffer that has a size of a couple hundred kB
+	// We fill it to mimic a particular case of an invalid packet where
+	// every byte (except the last one) will indicate that another varint
+	// will follow in the next byte(s).
+	std::array< char, 1 << 18 > hugeBuf;
+	std::fill(hugeBuf.begin(), hugeBuf.end(), 0xF8);
+	hugeBuf.back() = 0x02;
+
+	PacketDataStream stream(hugeBuf.data(), static_cast< unsigned int >(hugeBuf.size()));
+	QVERIFY(stream.isValid());
+
+	std::int64_t val = 0;
+	stream >> val;
+	(void) val;
+
+	// For this kind of packet, we expect the stream to figure out that it is invalid
+	QVERIFY(!stream.isValid());
 }
 
 QTEST_MAIN(TestPacketDataStream)

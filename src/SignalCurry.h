@@ -1,4 +1,4 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
@@ -20,11 +20,10 @@ class SignalCurry : public QObject {
 private:
 	bool bDeleteAfterFirstUse;
 	QVariant qvData;
+
 public:
 	SignalCurry(QVariant data, bool deleteAfterFirstUse = false, QObject *p = 0)
-	    : QObject(p)
-		, bDeleteAfterFirstUse(deleteAfterFirstUse)
-		, qvData(data) {}
+		: QObject(p), bDeleteAfterFirstUse(deleteAfterFirstUse), qvData(data) {}
 
 	static void curry(QObject *sender, const char *signal, QObject *receiver, const char *slot, QVariant data) {
 		SignalCurry *c = new SignalCurry(data);
@@ -37,7 +36,8 @@ signals:
 public slots:
 	void call() {
 		emit called(qvData);
-		if (bDeleteAfterFirstUse) deleteLater();
+		if (bDeleteAfterFirstUse)
+			deleteLater();
 	}
 };
 

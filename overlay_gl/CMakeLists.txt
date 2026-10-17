@@ -1,0 +1,121 @@
+# Copyright The Mumble Developers. All rights reserved.
+# Use of this source code is governed by a BSD-style license
+# that can be found in the LICENSE file at the root of the
+# Mumble source tree or at <https://www.mumble.info/LICENSE>.
+
+# Overlay payload for UNIX-like systems.
+
+include(CheckIncludeFile)
+
+add_library(overlay_gl SHARED "overlay.c")
+
+target_link_libraries(overlay_gl PRIVATE ipcutils)
+
+set_target_properties(overlay_gl
+	PROPERTIES
+		LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+		OUTPUT_NAME "mumbleoverlay"
+		VERSION ${CMAKE_PROJECT_VERSION}
+		LINKER_LANGUAGE CXX # linker needs C++ runtime for ipcutils
+)
+
+if(NOT APPLE)
+	find_package("OpenGL" REQUIRED)
+	# Only headers are needed: GL is resolved at runtime and must not be loaded into every process we are injected into
+	target_link_libraries(overlay_gl PRIVATE $<COMPILE_ONLY:OpenGL::GL>)
+
+	target_link_options(overlay_gl BEFORE
+		PRIVATE
+			"-Wl,-z,lazy"
+	)
+
+	target_compile_definitions(overlay_gl
+		PRIVATE
+			"TARGET_UNIX"
+	)
+
+	if(overlay-xcompile)
+		# Just check for this header file while using a 32bit target as a really small and incomplete check whether g++-multilib seems to be
+		# installed. If we don't find it, we can assume it's not there but if we do find it, we still don't know. Thus we still print the
+		# message about the 32bit target potentially failing due to missing g++-multilib.
+		CHECK_INCLUDE_FILE("sys/cdefs.h" FOUND_CDEFS "-m32")
+		if(NOT FOUND_CDEFS)
+			message(FATAL_ERROR "Can't find the 32bit version of sys/cdefs.h - did you install g++-multilib?")
+		else()
+			message(STATUS "\nIf the 32 bit overlay library fails to compile, make sure the requirements are installed (\"g++-multilib\" package on Debian-based distributions).\n")
+		endif()
+
+		set_target_properties(overlay_gl
+			PROPERTIES
+				OUTPUT_NAME "mumbleoverlay.x86_64"
+		)
+
+		add_library(overlay_gl_x86 SHARED "overlay.c")
+
+		get_target_property(ipcutils_sources ipcutils SOURCES)
+		get_target_property(ipcutils_source_dir ipcutils SOURCE_DIR)
+		list(TRANSFORM ipcutils_sources PREPEND "${ipcutils_source_dir}/")
+
+		add_library(ipcutils_x86 STATIC ${ipcutils_sources})
+		target_include_directories(ipcutils_x86 PUBLIC "${ipcutils_source_dir}")
+		target_compile_options(ipcutils_x86 PRIVATE "-m32")
+		set_target_properties(ipcutils_x86 PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+		target_link_libraries(overlay_gl_x86 PRIVATE ipcutils_x86)
+
+		target_compile_definitions(overlay_gl_x86
+			PRIVATE
+				"TARGET_UNIX"
+		)
+
+		target_compile_options(overlay_gl_x86
+			PRIVATE
+				"-m32"
+		)
+
+		# Linking the overlay library with '-z now' requires all target processes to have libGL symbols in them at load time.
+		# If it doesn't, the program will not start at all.
+		#
+		# Instead, explicitly use '-z lazy' to defer libGL symbol resolution until first use, which is never for non-libGL users.
+		target_link_options(overlay_gl_x86 BEFORE
+			PRIVATE
+				"-m32"
+				"-Wl,-z,lazy"
+		)
+
+		set_target_properties(overlay_gl_x86
+			PROPERTIES
+				LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+				OUTPUT_NAME "mumbleoverlay.x86"
+				VERSION ${CMAKE_PROJECT_VERSION}
+				LINKER_LANGUAGE CXX
+		)
+	endif()
+
+	if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+		target_link_libraries(overlay_gl
+			PRIVATE
+				"-ldl"
+				"-lrt"
+		)
+
+		if(TARGET overlay_gl_x86)
+			target_link_libraries(overlay_gl_x86
+				PRIVATE
+					"-ldl"
+					"-lrt"
+			)
+		endif()
+	endif()
+
+	if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" OR ${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
+		if(TARGET overlay_gl_x86)
+			# install 32bit overlay library
+			install(TARGETS overlay_gl_x86 LIBRARY DESTINATION "${MUMBLE_INSTALL_LIBDIR}")
+		endif()
+	endif()
+endif()
+
+# install native overlay library
+install(TARGETS overlay_gl LIBRARY DESTINATION "${MUMBLE_INSTALL_LIBDIR}")
+

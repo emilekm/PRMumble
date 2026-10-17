@@ -1,4 +1,4 @@
-// Copyright 2005-2019 The Mumble Developers. All rights reserved.
+// Copyright The Mumble Developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license
 // that can be found in the LICENSE file at the root of the
 // Mumble source tree or at <https://www.mumble.info/LICENSE>.
@@ -6,32 +6,33 @@
 #ifndef MUMBLE_MUMBLE_SHAREDMEMORY_H_
 #define MUMBLE_MUMBLE_SHAREDMEMORY_H_
 
-#include <QtCore/QString>
 #include <QtCore/QObject>
+#include <QtCore/QString>
 
 struct SharedMemory2Private;
 class SharedMemory2 : QObject {
-	private:
-		Q_DISABLE_COPY(SharedMemory2)
-		Q_OBJECT
-	protected:
-		QString qsName;
-		SharedMemory2Private *d;
-		unsigned char *a_ucData;
-		unsigned int uiSize;
-		static unsigned int uiIndex;
-	public:
-		SharedMemory2(QObject *p, unsigned int minsize, const QString &name = QString(), bool create = false);
-		~SharedMemory2();
+private:
+	Q_DISABLE_COPY(SharedMemory2)
+	Q_OBJECT
+protected:
+	QString qsName;
+	SharedMemory2Private *d;
+	unsigned char *a_ucData;
+	unsigned int uiSize;
+	static unsigned int uiIndex;
 
-		void erase();
-		void systemRelease();
+public:
+	SharedMemory2(QObject *p, unsigned int minsize, const QString &name = QString(), bool create = false);
+	~SharedMemory2() Q_DECL_OVERRIDE;
 
-		QString name() const;
-		unsigned int size() const;
-		void setData(unsigned char* data, size_t length);
-		unsigned char *data();
-		const unsigned char *data() const;
+	void erase();
+	void systemRelease();
+
+	QString name() const;
+	unsigned int size() const;
+	void setData(const unsigned char *data, size_t length);
+	unsigned char *data();
+	const unsigned char *data() const;
 };
 
 #endif

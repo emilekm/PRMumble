@@ -816,6 +816,14 @@ void MainWindow::msgUserState(const MumbleProto::UserState &msg) {
 		pmModel->setCommentHash(pDst, blob(msg.comment_hash()));
 	if (msg.has_comment())
 		pmModel->setComment(pDst, u8(msg.comment()));
+	
+	if (msg.has_plugin_identity()) {
+		pDst->qsIdentity = u8(msg.plugin_identity());
+	}
+	
+	if (msg.position_size() >= 3) {
+		pDst->setPosition(msg.position(0), msg.position(1), msg.position(2));
+	}
 }
 
 /// This message is being received when a user was removed. This might be because the user disconnected or because

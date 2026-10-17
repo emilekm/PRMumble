@@ -242,6 +242,13 @@ void ClientUser::setRecording(bool recording) {
 	emit recordingStateChanged();
 }
 
+void ClientUser::setPosition(float x, float y, float z) {
+	fPosition[0] = x;
+	fPosition[1] = y;
+	fPosition[2] = z;
+	emit positionChanged();
+}
+
 void ClientUser::setLocalVolumeAdjustment(float adjustment) {
 	float oldAdjustment = m_localVolume;
 	m_localVolume       = adjustment;

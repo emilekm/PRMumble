@@ -33,9 +33,13 @@
 #endif
 
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <vector>
+
+// Minimum movement (in game units) on any axis before PRMumble re-sends the player's position
+static constexpr float PR_POSITION_UPDATE_THRESHOLD = 10.0f;
 
 #ifdef Q_OS_WIN
 #	include <tlhelp32.h>
@@ -934,6 +938,7 @@ void PluginManager::on_syncPositionalData() {
 
 			m_sentData.context.clear();
 			m_sentData.identity.clear();
+			m_sentData.positionSent = false;
 		} else {
 			// Check if the identity and/or the context has changed and if it did, send that new info to the server
 			QMutexLocker mLock(&m_sentDataMutex);
@@ -956,6 +961,25 @@ void PluginManager::on_syncPositionalData() {
 
 				if (Global::get().sh) {
 					// send the message if the serverHandler is available
+					Global::get().sh->sendMessage(mpus);
+				}
+			}
+
+			// PRMumble relays the player's position to other clients whenever it moved noticeably
+			const Position3D &pos = m_positionalData.m_playerPos;
+			if (!m_sentData.positionSent || std::abs(pos.x - m_sentData.position.x) > PR_POSITION_UPDATE_THRESHOLD
+				|| std::abs(pos.y - m_sentData.position.y) > PR_POSITION_UPDATE_THRESHOLD
+				|| std::abs(pos.z - m_sentData.position.z) > PR_POSITION_UPDATE_THRESHOLD) {
+				m_sentData.position     = pos;
+				m_sentData.positionSent = true;
+
+				MumbleProto::UserState mpus;
+				mpus.set_session(Global::get().uiSession);
+				mpus.add_position(pos.x);
+				mpus.add_position(pos.y);
+				mpus.add_position(pos.z);
+
+				if (Global::get().sh) {
 					Global::get().sh->sendMessage(mpus);
 				}
 			}

@@ -30,6 +30,9 @@ public:
 	bool bLocalMute;
 	// Whether or not the user's effective output is inaudible due to volume settings, positional audio etc.
 	bool volumeMute;
+	// Project Reality: in-game position and plugin identity relayed by the server.
+	float fPosition[3] = { 0.0f, 0.0f, 0.0f };
+	QString qsIdentity;
 
 	float fPowerMin, fPowerMax;
 	float fAverageAvailable;
@@ -87,7 +90,9 @@ public slots:
 	void setRecording(bool recording);
 	void setLocalVolumeAdjustment(float adjustment);
 	void setLocalNickname(const QString &nickname);
+	void setPosition(float x, float y, float z);
 signals:
+	void positionChanged();
 	void talkingStateChanged();
 	void muteDeafStateChanged();
 	void prioritySpeakerStateChanged();

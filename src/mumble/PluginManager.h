@@ -34,6 +34,8 @@
 struct PluginManager_SentData {
 	QString context;
 	QString identity;
+	Position3D position;
+	bool positionSent = false;
 };
 
 

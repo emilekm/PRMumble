@@ -102,8 +102,8 @@ PulseAudioSystem::PulseAudioSystem() {
 	pa_mainloop_api *api = m_pulseAudio.threaded_mainloop_get_api(pam);
 
 	pa_proplist *proplist = m_pulseAudio.proplist_new();
-	m_pulseAudio.proplist_sets(proplist, PA_PROP_APPLICATION_NAME, "Mumble");
-	m_pulseAudio.proplist_sets(proplist, PA_PROP_APPLICATION_ID, "info.mumble.mumble");
+	m_pulseAudio.proplist_sets(proplist, PA_PROP_APPLICATION_NAME, "PRMumble");
+	m_pulseAudio.proplist_sets(proplist, PA_PROP_APPLICATION_ID, "com.reality.PRMumble.PRMumble");
 	m_pulseAudio.proplist_sets(proplist, PA_PROP_APPLICATION_ICON_NAME, "mumble");
 	m_pulseAudio.proplist_sets(proplist, PA_PROP_MEDIA_ROLE, "game");
 

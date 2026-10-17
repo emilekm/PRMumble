@@ -12,11 +12,11 @@ class QDBusMessage;
 
 class MumbleDBus : public QDBusAbstractAdaptor {
 protected:
-	virtual constexpr QLatin1String dbusErrorPrefix() const { return QLatin1String("info.mumble.Error"); }
+	virtual constexpr QLatin1String dbusErrorPrefix() const { return QLatin1String("com.reality.PRMumble.Error"); }
 
 private:
 	Q_OBJECT
-	Q_CLASSINFO("D-Bus Interface", "info.mumble.Mumble")
+	Q_CLASSINFO("D-Bus Interface", "com.reality.PRMumble.PRMumble")
 	Q_DISABLE_COPY(MumbleDBus)
 	Q_PROPERTY(bool mute READ isSelfMuted WRITE setSelfMuted)
 	Q_PROPERTY(bool deaf READ isSelfDeaf WRITE setSelfDeaf)

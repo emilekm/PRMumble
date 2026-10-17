@@ -397,9 +397,9 @@ int main(int argc, char **argv) {
 
 	// Initialize application object.
 	MumbleApplication a(argc, argv);
-	a.setApplicationName(QLatin1String("Mumble"));
-	a.setOrganizationName(QLatin1String("Mumble"));
-	a.setOrganizationDomain(QLatin1String("mumble.info"));
+	a.setApplicationName(QLatin1String("PR Mumble"));
+	a.setOrganizationName(QLatin1String("Project Reality"));
+	a.setOrganizationDomain(QLatin1String("realitymod.com"));
 	a.setQuitOnLastWindowClosed(false);
 
 	QPalette linkPalette(a.palette());
@@ -407,7 +407,7 @@ int main(int argc, char **argv) {
 	linkPalette.setColor(QPalette::LinkVisited, QColor(0x33, 0x99, 0xcc));
 	a.setPalette(linkPalette);
 
-	a.setDesktopFileName("info.mumble.Mumble");
+	a.setDesktopFileName("com.reality.PRMumble");
 
 #ifdef Q_OS_WIN
 	a.installNativeEventFilter(&a);
@@ -587,7 +587,7 @@ int main(int argc, char **argv) {
 		QMap< QString, QVariant > param;
 		QString rpcCommand = QString::fromStdString(*options.rpcCommand);
 		param.insert(rpcCommand, rpcCommand);
-		sent = SocketRPC::send(QLatin1String("Mumble"), QLatin1String("self"), param);
+		sent = SocketRPC::send(QLatin1String("PRMumble"), QLatin1String("self"), param);
 		if (sent) {
 			return 0;
 		} else {
@@ -603,42 +603,26 @@ int main(int argc, char **argv) {
 #endif
 			bool sent = false;
 #ifdef USE_DBUS
-			QDBusInterface qdbi(QLatin1String("info.mumble.mumble"), QLatin1String("/"),
-								QLatin1String("info.mumble.Mumble"));
+			QDBusInterface qdbi(QLatin1String("com.reality.PRMumble.PRMumble"), QLatin1String("/"),
+								QLatin1String("com.reality.PRMumble.PRMumble"));
 
 			QDBusMessage reply = qdbi.call(QLatin1String("openUrl"), QLatin1String(url.toEncoded()));
 			sent               = (reply.type() == QDBusMessage::ReplyMessage);
-
-			if (!sent) {
-				QDBusInterface qdbiLegacy(QLatin1String("net.sourceforge.mumble.mumble"), QLatin1String("/"),
-										  QLatin1String("net.sourceforge.mumble.Mumble"));
-
-				reply = qdbiLegacy.call(QLatin1String("openUrl"), QLatin1String(url.toEncoded()));
-				sent  = (reply.type() == QDBusMessage::ReplyMessage);
-			}
 #else
-			sent = SocketRPC::send(QLatin1String("Mumble"), QLatin1String("url"), param);
+			sent = SocketRPC::send(QLatin1String("PRMumble"), QLatin1String("url"), param);
 #endif
 			if (sent)
 				return 0;
 		} else {
 			bool sent = false;
 #ifdef USE_DBUS
-			QDBusInterface qdbi(QLatin1String("info.mumble.mumble"), QLatin1String("/"),
-								QLatin1String("info.mumble.Mumble"));
+			QDBusInterface qdbi(QLatin1String("com.reality.PRMumble.PRMumble"), QLatin1String("/"),
+								QLatin1String("com.reality.PRMumble.PRMumble"));
 
 			QDBusMessage reply = qdbi.call(QLatin1String("focus"));
 			sent               = (reply.type() == QDBusMessage::ReplyMessage);
-
-			if (!sent) {
-				QDBusInterface qdbiLegacy(QLatin1String("net.sourceforge.mumble.mumble"), QLatin1String("/"),
-										  QLatin1String("net.sourceforge.mumble.Mumble"));
-
-				reply = qdbiLegacy.call(QLatin1String("focus"));
-				sent  = (reply.type() == QDBusMessage::ReplyMessage);
-			}
 #else
-			sent = SocketRPC::send(QLatin1String("Mumble"), QLatin1String("focus"));
+			sent = SocketRPC::send(QLatin1String("PRMumble"), QLatin1String("focus"));
 #endif
 			if (sent)
 				return 0;
@@ -655,7 +639,7 @@ int main(int argc, char **argv) {
 	// modes enabled. This gives us exclusive access to the file.
 	// If another Mumble instance attempts to open the file, it will fail,
 	// and that instance will know to terminate itself.
-	UserLockFile userLockFile(Global::get().qdBasePath.filePath(QLatin1String("mumble.lock")));
+	UserLockFile userLockFile(Global::get().qdBasePath.filePath(QLatin1String("prmumble.lock")));
 	if (!options.allowMultiple) {
 		if (!userLockFile.acquire()) {
 			qWarning("Another process has already acquired the lock file at '%s'. Terminating...",
@@ -835,13 +819,11 @@ int main(int argc, char **argv) {
 
 #ifdef USE_DBUS
 	new MumbleDBus(Global::get().mw);
-	new MumbleDBusLegacy(Global::get().mw);
 	QDBusConnection::sessionBus().registerObject(QLatin1String("/"), Global::get().mw);
-	QDBusConnection::sessionBus().registerService(QLatin1String("info.mumble.mumble"));
-	QDBusConnection::sessionBus().registerService(QLatin1String("net.sourceforge.mumble.mumble"));
+	QDBusConnection::sessionBus().registerService(QLatin1String("com.reality.PRMumble.PRMumble"));
 #endif
 
-	SocketRPC *srpc = new SocketRPC(QLatin1String("Mumble"));
+	SocketRPC *srpc = new SocketRPC(QLatin1String("PRMumble"));
 
 	Global::get().l->log(Log::Information, MainWindow::tr("Welcome to Mumble."));
 

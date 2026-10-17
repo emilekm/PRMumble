@@ -32,16 +32,7 @@ void Global::migrateDataDir(const QDir &toDir) {
 
 	QStringList oldPaths;
 
-#ifdef Q_OS_MAC
-	oldPaths << QDir::homePath() + "/Library/Preferences/Mumble";
-#endif
-
-// Qt4 used another data directory on Unix-like systems, to ensure a seamless
-// transition we must first move the users data to the new directory.
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MAC)
-	oldPaths << QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/data/Mumble";
-#endif
-
+// Only migrate legacy PRMumble data; never move a regular Mumble installation's data.
 #ifdef Q_OS_WIN
 	// Get AppData dir
 	QString appdata;
@@ -50,7 +41,7 @@ void Global::migrateDataDir(const QDir &toDir) {
 		appdata = QDir::fromNativeSeparators(QString::fromWCharArray(appData));
 
 		if (!appdata.isEmpty()) {
-			appdata.append(QLatin1String("/Mumble"));
+			appdata.append(QLatin1String("/Project Reality/Project Reality Mumble"));
 			oldPaths << appdata;
 		}
 	}
@@ -72,7 +63,7 @@ void Global::migrateDataDir(const QDir &toDir) {
 				if (!dummy.rename(currentInfo.absoluteFilePath(), toDir.absoluteFilePath(currentInfo.fileName()))) {
 					qWarning("Failed at migrating %s", qUtf8Printable(currentInfo.fileName()));
 				}
-				if (currentInfo.fileName() == "mumble.sqlite") {
+				if (currentInfo.fileName() == "PRMumble.sqlite") {
 					migratedDBPath = QDir(toDir.absoluteFilePath(currentInfo.fileName())).canonicalPath();
 				}
 				if (currentInfo.isDir() && currentInfo.fileName() == "Plugins") {

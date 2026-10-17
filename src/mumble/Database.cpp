@@ -47,7 +47,7 @@ bool Database::findOrCreateDatabase() {
 	datapaths << Global::get().qdBasePath.absolutePath();
 	datapaths << QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
 #if defined(Q_OS_UNIX) && !defined(Q_OS_MAC)
-	datapaths << QDir::homePath() + QLatin1String("/.config/Mumble");
+	datapaths << QDir::homePath() + QLatin1String("/.config/PRMumble");
 #endif
 	datapaths << QDir::homePath();
 	datapaths << QDir::currentPath();
@@ -60,14 +60,14 @@ bool Database::findOrCreateDatabase() {
 	for (const QString &datapath : datapaths) {
 		// Try the legacy path first, and use it if it exists.
 		// If it doesn't, use the new, non-hidden version.
-		QFile legacyDatabaseFile(datapath + QLatin1String("/.mumble.sqlite"));
+		QFile legacyDatabaseFile(datapath + QLatin1String("/.PRMumble.sqlite"));
 		if (legacyDatabaseFile.exists()) {
 			db.setDatabaseName(legacyDatabaseFile.fileName());
 			if (db.open()) {
 				return true;
 			}
 		}
-		QFile databaseFile(datapath + QLatin1String("/mumble.sqlite"));
+		QFile databaseFile(datapath + QLatin1String("/PRMumble.sqlite"));
 		if (databaseFile.exists()) {
 			db.setDatabaseName(databaseFile.fileName());
 			if (db.open()) {
@@ -79,7 +79,7 @@ bool Database::findOrCreateDatabase() {
 	// There is no existing database, so we create one
 	for (const QString &datapath : datapaths) {
 		QDir::root().mkpath(datapath);
-		QFile f(datapath + QLatin1String("/mumble.sqlite"));
+		QFile f(datapath + QLatin1String("/PRMumble.sqlite"));
 		db.setDatabaseName(f.fileName());
 		if (db.open()) {
 			return true;

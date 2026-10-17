@@ -252,7 +252,7 @@ void os_init() {
 
 	Global::get().qdBasePath.mkpath(QLatin1String("Snapshots"));
 	if (bIsWin7) {
-		SetCurrentProcessExplicitAppUserModelID(L"info.mumble.Mumble");
+		SetCurrentProcessExplicitAppUserModelID(L"com.reality.PRMumble.PRMumble");
 	}
 }
 

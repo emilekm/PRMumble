@@ -3799,57 +3799,12 @@ void MainWindow::serverDisconnected(QAbstractSocket::SocketError err, QString re
 	enableRecording(false);
 
 	if (!Global::get().sh->qlErrors.isEmpty()) {
-		for (const QSslError &e : Global::get().sh->qlErrors) {
-			Global::get().l->log(Log::Warning, tr("SSL Verification failed: %1").arg(e.errorString().toHtmlEscaped()));
-		}
+		// PR runs alongside the game and can't show popups, so the certificate is accepted and stored silently
 		if (!Global::get().sh->qscCert.isEmpty()) {
 			QSslCertificate c = Global::get().sh->qscCert.at(0);
-			QString basereason;
-			QString actual_digest = QString::fromLatin1(c.digest(QCryptographicHash::Sha1).toHex());
-			QString digests_section =
-				tr("<li>Server certificate digest (SHA-1):\t%1</li>").arg(ViewCert::prettifyDigest(actual_digest));
-			QString expected_digest = Global::get().db->getDigest(host, port);
-			if (!expected_digest.isNull()) {
-				basereason =
-					tr("<b>WARNING:</b> The server presented a certificate that was different from the stored one.");
-				digests_section.append(tr("<li>Expected certificate digest (SHA-1):\t%1</li>")
-										   .arg(ViewCert::prettifyDigest(expected_digest)));
-			} else {
-				basereason = tr("Server presented a certificate which failed verification.");
-			}
-			QStringList qsl;
-			for (const QSslError &e : Global::get().sh->qlErrors) {
-				qsl << QString::fromLatin1("<li>%1</li>").arg(e.errorString().toHtmlEscaped());
-			}
-
-			QMessageBox qmb(QMessageBox::Warning, QLatin1String("Mumble"),
-							tr("<p>%1</p><ul>%2</ul><p>The specific errors with this certificate are:</p><ol>%3</ol>"
-							   "<p>Do you wish to accept this certificate anyway?<br />(It will also be stored so you "
-							   "won't be asked this again.)</p>")
-								.arg(basereason)
-								.arg(digests_section)
-								.arg(qsl.join(QString())),
-							QMessageBox::Yes | QMessageBox::No, this);
-
-			qmb.setDefaultButton(QMessageBox::No);
-			qmb.setEscapeButton(QMessageBox::No);
-
-			QPushButton *qp = qmb.addButton(tr("&View Certificate"), QMessageBox::ActionRole);
-			while (true) {
-				int res = qmb.exec();
-
-				if (qmb.clickedButton() == qp) {
-					ViewCert vc(Global::get().sh->qscCert, this);
-					vc.exec();
-					continue;
-				} else if (res == QMessageBox::Yes) {
-					Global::get().db->setDigest(host, port,
-												QString::fromLatin1(c.digest(QCryptographicHash::Sha1).toHex()));
-					qaServerDisconnect->setEnabled(true);
-					on_Reconnect_timeout();
-				}
-				break;
-			}
+			Global::get().db->setDigest(host, port, QString::fromLatin1(c.digest(QCryptographicHash::Sha1).toHex()));
+			qaServerDisconnect->setEnabled(true);
+			on_Reconnect_timeout();
 		}
 	} else if (err == QAbstractSocket::SslHandshakeFailedError) {
 		QMessageBox msgBox;

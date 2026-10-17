@@ -1689,7 +1689,7 @@ void MainWindow::on_qaServerConnect_triggered(bool autoconnect) {
 
 void MainWindow::on_Reconnect_timeout() {
 	if (Global::get().sh->isRunning()) {
-		return;
+		Global::get().sh->disconnect();
 	}
 
 	if (!m_reconnectSoundBlocker) {

@@ -505,6 +505,8 @@ const char *Log::colorClasses[] = { "time", "server", "privilege" };
 const QStringList Log::allowedSchemes() {
 	QStringList qslAllowedSchemeNames;
 	qslAllowedSchemeNames << QLatin1String("mumble");
+	qslAllowedSchemeNames << QLatin1String("PRMumble");
+	qslAllowedSchemeNames << QLatin1String("prmumble");
 	qslAllowedSchemeNames << QLatin1String("http");
 	qslAllowedSchemeNames << QLatin1String("https");
 	qslAllowedSchemeNames << QLatin1String("gemini");

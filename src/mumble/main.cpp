@@ -342,7 +342,7 @@ CLIOptions parseCLI(int argc, char **argv) {
 		   "hyperlink", options.hyperlink,
 		   "<url> specifies a URL to connect to after startup instead of showing "
 		   "the connection window, and has the following form:\n"
-		   "mumble://[<username>[:<password>]@]<host>[:<port>][/<channel>[/"
+		   "prmumble://[<username>[:<password>]@]<host>[:<port>][/<channel>[/"
 		   "<subchannel>...]][?version=<x.y.z>]\n"
 		   "\n"
 		   "<plugin_list> is a list of plugin files that shall be installed"
@@ -518,7 +518,7 @@ int main(int argc, char **argv) {
 			if (!options.rpcMode) {
 				QString qHyperlink = QString::fromStdString(*options.hyperlink);
 				QUrl u             = QUrl::fromEncoded(qHyperlink.toUtf8());
-				if (u.isValid() && (u.scheme() == QLatin1String("mumble"))) {
+				if (u.isValid() && (u.scheme() == QLatin1String("prmumble"))) {
 					url = u;
 				} else {
 					QFile f(qHyperlink);

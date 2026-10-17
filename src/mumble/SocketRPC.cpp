@@ -181,7 +181,7 @@ void SocketRPCClient::processXml() {
 				QUrl u;
 
 				Global::get().sh->getConnectionInfo(host, port, user, pw);
-				u.setScheme(QLatin1String("mumble"));
+				u.setScheme(QLatin1String("prmumble"));
 				u.setHost(host);
 				u.setPort(port);
 				u.setUserName(user);
@@ -203,7 +203,7 @@ void SocketRPCClient::processXml() {
 			iter = qmRequest.find(QLatin1String("href"));
 			if (iter != qmRequest.constEnd()) {
 				QUrl u = iter.value().toUrl();
-				if (u.isValid() && u.scheme() == QLatin1String("mumble")) {
+				if (u.isValid() && u.scheme() == QLatin1String("prmumble")) {
 					OpenURLEvent *oue = new OpenURLEvent(u);
 					qApp->postEvent(Global::get().mw, oue);
 					ack = true;

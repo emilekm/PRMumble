@@ -1338,42 +1338,12 @@ void MainWindow::openUrl(const QUrl &url) {
 		return;
 	}
 
-	if (url.scheme() != QLatin1String("mumble")) {
-		Global::get().l->log(Log::Warning, tr("URL scheme is not 'mumble'"));
+	if (url.scheme() != QLatin1String("prmumble")) {
+		Global::get().l->log(Log::Warning, tr("URL scheme is not 'prmumble'"));
 		return;
 	}
-
-	Version::full_t thisVersion   = Version::get();
-	Version::full_t targetVersion = Version::UNKNOWN;
 
 	QUrlQuery query(url);
-	QString version = query.queryItemValue(QLatin1String("version"));
-	if (version.size() > 0) {
-		targetVersion = Version::fromString(version);
-		if (targetVersion == Version::UNKNOWN) {
-			// The version format is invalid
-			Global::get().l->log(Log::Warning,
-								 QObject::tr("The provided URL uses an invalid version format: \"%1\"").arg(version));
-			return;
-		}
-	}
-
-	// With no version parameter given assume the link refers to our version
-	if (targetVersion == Version::UNKNOWN) {
-		targetVersion = thisVersion;
-	}
-
-	// We can't handle URLs for versions < 1.2.0
-	const bool isPre_120 = targetVersion < Version::fromComponents(1, 2, 0);
-	// We also can't handle URLs for versions newer than the running Mumble instance
-	const bool isFuture = thisVersion < targetVersion;
-
-	if (isPre_120 || isFuture) {
-		Global::get().l->log(
-			Log::Warning,
-			tr("This version of Mumble can't handle URLs for Mumble version %1").arg(Version::toString(targetVersion)));
-		return;
-	}
 
 	QString host        = url.host();
 	unsigned short port = static_cast< unsigned short >(url.port(DEFAULT_MUMBLE_PORT));

@@ -65,8 +65,8 @@
     <addaction name="separator"/>
     <addaction name="qaHelpAbout"/>
     <addaction name="qaHelpAboutQt"/>
-    <addaction name="separator"/>
-    <addaction name="qaHelpVersionCheck"/>
+    <!--<addaction name="separator"/>
+    <addaction name="qaHelpVersionCheck"/>-->
    </widget>
    <widget class="QMenu" name="qmServer">
     <property name="title">
@@ -179,18 +179,16 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
-   <addaction name="qaServerConnect"/>
-   <addaction name="qaServerDisconnect"/>
-   <addaction name="qaServerAddToFavorites"/>
-   <addaction name="separator"/>
-   <addaction name="qaMoveBack"/>
+   <!--<addaction name="qaServerConnect"/>-->
+   <addaction name="qaServerInformation"/>
    <addaction name="separator"/>
    <addaction name="qaAudioMute"/>
    <addaction name="qaAudioDeaf"/>
    <addaction name="qaRecording"/>
    <addaction name="separator"/>
+   <!-- User comments aren't needed in PR
    <addaction name="qaSelfComment"/>
-   <addaction name="separator"/>
+   <addaction name="separator"/> -->
    <addaction name="qaConfigDialog"/>
    <addaction name="separator"/>
    <addaction name="qaFilterToggle"/>
@@ -882,6 +880,13 @@ the channel's context menu.</string>
    <property name="toolTip">
     <string>Change your avatar image on this server</string>
    </property>
+   <!-- Not needed in PR -->
+   <property name="iconVisibleInMenu">
+    <bool>false</bool>
+   </property>
+   <property name="visible">
+         <bool>false</bool>
+   </property>
   </action>
   <action name="qaServerTokens">
    <property name="text">
@@ -898,6 +903,13 @@ the channel's context menu.</string>
    <property name="toolTip">
     <string>Remove currently defined avatar image.</string>
    </property>
+   <!-- Not needed in PR -->
+   <property name="iconVisibleInMenu">
+    <bool>false</bool>
+   </property>
+   <property name="visible">
+         <bool>false</bool>
+   </property>
   </action>
   <action name="qaUserCommentReset">
    <property name="text">
@@ -913,6 +925,13 @@ the channel's context menu.</string>
    </property>
    <property name="toolTip">
     <string>Remove the avatar of the selected user.</string>
+   </property>
+   <!-- Not needed in PR -->
+   <property name="iconVisibleInMenu">
+    <bool>false</bool>
+   </property>
+   <property name="visible">
+         <bool>false</bool>
    </property>
   </action>
   <action name="qaChannelJoin">
@@ -970,11 +989,15 @@ the channel's context menu.</string>
    <property name="toolTip">
     <string>Change your own comment</string>
    </property>
+   <!-- Not needed in PR -->
    <property name="iconVisibleInMenu">
     <bool>true</bool>
    </property>
    <property name="whatsThis">
     <string>This will open the rich text editor to change your comment. Comments are separate for each server. Other users can read your comment by hovering over the comment icon in the user and channel tree.</string>
+   </property>
+   <property name="visible">
+         <bool>false</bool>
    </property>
   </action>
   <action name="qaSelfRegister">

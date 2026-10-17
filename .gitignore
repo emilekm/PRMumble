@@ -45,6 +45,7 @@ doxygen/
 .qmake.stash
 .DS_Store
 .directory
+*.orig
 build/
 compile_commands.json
 .devcontainer/*

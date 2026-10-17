@@ -92,6 +92,8 @@ public:
 	QAction *qaEmpty;
 
 	GlobalShortcut *gsPushTalk, *gsResetAudio, *gsMuteSelf, *gsDeafSelf;
+	GlobalShortcut *gsPRSquad, *gsPRSLAll, *gsPRSL1, *gsPRSL2, *gsPRSL3, *gsPRSL4;
+	GlobalShortcut *gsPRSL5, *gsPRSL6, *gsPRSL7, *gsPRSL8, *gsPRSL9, *gsPRSLCommander;
 	GlobalShortcut *gsUnlink, *gsPushMute, *gsJoinChannel;
 #ifdef USE_OVERLAY
 	GlobalShortcut *gsToggleOverlay;
@@ -321,6 +323,18 @@ public slots:
 	void on_gsMuteSelf_down(QVariant);
 	void on_gsDeafSelf_down(QVariant);
 	void on_gsWhisper_triggered(bool, QVariant);
+	void on_PRCommSquadRadio_triggered(bool, QVariant);
+	void on_PRCommSLAll_triggered(bool, QVariant);
+	void on_PRCommSL1_triggered(bool, QVariant);
+	void on_PRCommSL2_triggered(bool, QVariant);
+	void on_PRCommSL3_triggered(bool, QVariant);
+	void on_PRCommSL4_triggered(bool, QVariant);
+	void on_PRCommSL5_triggered(bool, QVariant);
+	void on_PRCommSL6_triggered(bool, QVariant);
+	void on_PRCommSL7_triggered(bool, QVariant);
+	void on_PRCommSL8_triggered(bool, QVariant);
+	void on_PRCommSL9_triggered(bool, QVariant);
+	void on_PRCommSLCommander_triggered(bool, QVariant);
 	void addTarget(ShortcutTarget *);
 	void removeTarget(ShortcutTarget *);
 	void on_gsListenChannel_triggered(bool, QVariant);

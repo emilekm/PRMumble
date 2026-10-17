@@ -63,6 +63,20 @@ enum Type {
 	ListenerAttenuationUp,
 	ListenerAttenuationDown,
 	AdaptivePush,
+
+	// Project Reality shortcuts; offset so future upstream additions never collide with persisted PR bindings
+	PRSquadRadio = 1000,
+	PRSLToAllSL,
+	PRSLToSL1,
+	PRSLToSL2,
+	PRSLToSL3,
+	PRSLToSL4,
+	PRSLToSL5,
+	PRSLToSL6,
+	PRSLToSL7,
+	PRSLToSL8,
+	PRSLToSL9,
+	PRSLToCommander,
 };
 
 // A few assertions meant to catch, if anyone inserts a new value in-between instead of appending
@@ -72,6 +86,7 @@ static_assert(ToggleMinimalView == 9, "You may only append to the end of the enu
 static_assert(ToggleSearch == 22, "You may only append to the end of the enum!");
 static_assert(HelpVersionCheck == 43, "You may only append to the end of the enum!");
 static_assert(AdaptivePush == 49, "You may only append to the end of the enum!");
+static_assert(PRSLToSL9 - PRSLToSL1 == 8, "PR squad leader shortcuts must stay contiguous");
 } // namespace GlobalShortcutType
 
 #endif // MUMBLE_MUMBLE_GLOBALSHORTCUTTYPES_H_

@@ -92,6 +92,7 @@
 #endif
 
 #include <algorithm>
+#include <array>
 #include <optional>
 
 #include "widgets/EventFilters.h"
@@ -225,12 +226,55 @@ constexpr int MainWindow::stateVersion() {
 }
 
 void MainWindow::createActions() {
-	gsPushTalk = new GlobalShortcut(this, GlobalShortcutType::PushToTalk, tr("Push-to-Talk", "Global Shortcut"));
+	gsPushTalk = new GlobalShortcut(this, GlobalShortcutType::PushToTalk, tr("Local Speech", "Global Shortcut"));
 	gsPushTalk->setObjectName(QLatin1String("PushToTalk"));
-	gsPushTalk->qsToolTip   = tr("Push and hold this button to send voice.", "Global Shortcut");
-	gsPushTalk->qsWhatsThis = tr(
-		"This configures the push-to-talk button, and as long as you hold this button down, you will transmit voice.",
-		"Global Shortcut");
+	gsPushTalk->qsToolTip   = tr("Push and hold this button to talk to players near you.", "Global Shortcut");
+	gsPushTalk->qsWhatsThis = tr("This configures the Local Speech button, and as long as you hold this button down, "
+								 "you will transmit to other players around you.",
+								 "Global Shortcut");
+
+	gsPRSquad = new GlobalShortcut(this, GlobalShortcutType::PRSquadRadio, tr("Squad Radio", "Global Shortcut"), false);
+	gsPRSquad->setObjectName(QLatin1String("PRCommSquadRadio"));
+	gsPRSquad->qsToolTip = tr("Push and hold this button to talk to your squad, no matter where they are", "Global Shortcut");
+	gsPRSquad->qsWhatsThis = tr("This configures the Squad Radio button, and as long as you hold this button down, you "
+								"will transmit to your squad, no matter where they are.",
+								"Global Shortcut");
+
+	gsPRSLAll = new GlobalShortcut(this, GlobalShortcutType::PRSLToAllSL, tr("SL To All SL", "Global Shortcut"), false);
+	gsPRSLAll->setObjectName(QLatin1String("PRCommSLAll"));
+	gsPRSLAll->qsToolTip = tr("Push and hold this button to talk to all other squad leaders on your team, if you are a "
+							  "squad leader",
+							  "Global Shortcut");
+	gsPRSLAll->qsWhatsThis = tr("This configures the SL To All SL button, and as long as you hold this button down, you "
+								"will transmit to all other squad leaders on your team, if you are a squad leader",
+								"Global Shortcut");
+
+	const std::array< GlobalShortcut **, 9 > slShortcuts = { &gsPRSL1, &gsPRSL2, &gsPRSL3, &gsPRSL4, &gsPRSL5,
+															 &gsPRSL6, &gsPRSL7, &gsPRSL8, &gsPRSL9 };
+	for (unsigned int i = 0; i < slShortcuts.size(); ++i) {
+		const int squad          = static_cast< int >(i) + 1;
+		GlobalShortcut *shortcut = new GlobalShortcut(this, GlobalShortcutType::PRSLToSL1 + static_cast< int >(i),
+													  tr("SL to SL %1", "Global Shortcut").arg(squad), false);
+		shortcut->setObjectName(QString::fromLatin1("PRCommSL%1").arg(squad));
+		shortcut->qsToolTip = tr("Push and hold this button to talk to Squad Leader %1, if you are a squad leader or "
+								 "the commander.",
+								 "Global Shortcut")
+								  .arg(squad);
+		shortcut->qsWhatsThis = tr("This configures the SL to SL %1 button, and as long as you hold this button down, "
+								   "you will transmit to Squad Leader %1, if you are a squad leader or the commander.",
+								   "Global Shortcut")
+									.arg(squad);
+		*slShortcuts[i] = shortcut;
+	}
+
+	gsPRSLCommander =
+		new GlobalShortcut(this, GlobalShortcutType::PRSLToCommander, tr("SL to Commander", "Global Shortcut"), false);
+	gsPRSLCommander->setObjectName(QLatin1String("PRCommSLCommander"));
+	gsPRSLCommander->qsToolTip =
+		tr("Push and hold this button to talk to the commander, if you are a squad leader", "Global Shortcut");
+	gsPRSLCommander->qsWhatsThis = tr("This configures the SL to Commander button, and as long as you hold this button "
+									  "down, you will transmit to the commander, if you are a squad leader.",
+									  "Global Shortcut");
 
 
 	gsResetAudio =
@@ -3201,6 +3245,54 @@ void MainWindow::on_gsWhisper_triggered(bool down, QVariant scdata) {
 		connect(fwd, SIGNAL(called(QVariant)), SLOT(whisperReleased(QVariant)));
 		QTimer::singleShot(static_cast< int >(Global::get().s.pttHold), fwd, SLOT(call()));
 	}
+}
+
+void MainWindow::on_PRCommSquadRadio_triggered(bool down, QVariant scdata) {
+	on_gsWhisper_triggered(down, scdata);
+}
+
+void MainWindow::on_PRCommSLAll_triggered(bool down, QVariant scdata) {
+	on_gsWhisper_triggered(down, scdata);
+}
+
+void MainWindow::on_PRCommSL1_triggered(bool down, QVariant scdata) {
+	on_gsWhisper_triggered(down, scdata);
+}
+
+void MainWindow::on_PRCommSL2_triggered(bool down, QVariant scdata) {
+	on_gsWhisper_triggered(down, scdata);
+}
+
+void MainWindow::on_PRCommSL3_triggered(bool down, QVariant scdata) {
+	on_gsWhisper_triggered(down, scdata);
+}
+
+void MainWindow::on_PRCommSL4_triggered(bool down, QVariant scdata) {
+	on_gsWhisper_triggered(down, scdata);
+}
+
+void MainWindow::on_PRCommSL5_triggered(bool down, QVariant scdata) {
+	on_gsWhisper_triggered(down, scdata);
+}
+
+void MainWindow::on_PRCommSL6_triggered(bool down, QVariant scdata) {
+	on_gsWhisper_triggered(down, scdata);
+}
+
+void MainWindow::on_PRCommSL7_triggered(bool down, QVariant scdata) {
+	on_gsWhisper_triggered(down, scdata);
+}
+
+void MainWindow::on_PRCommSL8_triggered(bool down, QVariant scdata) {
+	on_gsWhisper_triggered(down, scdata);
+}
+
+void MainWindow::on_PRCommSL9_triggered(bool down, QVariant scdata) {
+	on_gsWhisper_triggered(down, scdata);
+}
+
+void MainWindow::on_PRCommSLCommander_triggered(bool down, QVariant scdata) {
+	on_gsWhisper_triggered(down, scdata);
 }
 
 /* Add and remove ShortcutTargets from the qmCurrentTargets Map, which counts

@@ -33,6 +33,7 @@ LookConfig::LookConfig(Settings &st) : ConfigWidget(st) {
 	setupUi(this);
 
 	qcbShowTransmitModeComboBox->hide();
+	qcbStateInTray->hide();
 
 	if (!QSystemTrayIcon::isSystemTrayAvailable()) {
 		qgbTray->hide();

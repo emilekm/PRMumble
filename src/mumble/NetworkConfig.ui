@@ -76,6 +76,9 @@
         <property name="text">
          <string>Reconnect to last server on startup</string>
         </property>
+        <property name="visible">
+         <bool>false</bool>
+        </property>
        </widget>
       </item>
       <item>
@@ -88,6 +91,12 @@
         </property>
         <property name="text">
          <string>Suppress certificate information</string>
+        </property>
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="visible">
+         <bool>false</bool>
         </property>
        </widget>
       </item>
@@ -345,6 +354,12 @@ Prevents the client from sending potentially identifying information about the o
         <property name="text">
          <string>Check for application updates on startup</string>
         </property>
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="visible">
+         <bool>false</bool>
+        </property>
        </widget>
       </item>
       <item>
@@ -364,6 +379,12 @@ Prevents the client from sending potentially identifying information about the o
        <widget class="QCheckBox" name="qcbPluginAutoUpdate">
         <property name="text">
          <string>Automatically download and install plugin updates</string>
+        </property>
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="visible">
+         <bool>false</bool>
         </property>
        </widget>
       </item>

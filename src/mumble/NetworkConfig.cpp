@@ -28,6 +28,11 @@ static ConfigRegistrar registrarNetworkConfig(1300, NetworkConfigNew);
 
 NetworkConfig::NetworkConfig(Settings &st) : ConfigWidget(st) {
 	setupUi(this);
+
+	for (QWidget *widget : std::initializer_list< QWidget * >{ qcbAutoConnect, qcbSuppressIdentity, qcbAutoUpdate,
+															   qcbPluginUpdateCheck, qcbPluginAutoUpdate }) {
+		widget->hide();
+	}
 }
 
 QString NetworkConfig::title() const {

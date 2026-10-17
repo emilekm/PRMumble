@@ -54,6 +54,7 @@ AudioInputDialog::AudioInputDialog(Settings &st) : ConfigWidget(st) {
 	qlInputHelp->setVisible(false);
 
 	qgbTransmission->hide();
+	qsQuality->setMaximum(40000);
 
 	if (AudioInputRegistrar::qmNew) {
 		QList< QString > keys = AudioInputRegistrar::qmNew->keys();
@@ -382,13 +383,7 @@ void AudioInputDialog::updateBitrate() {
 
 	int total = audiorate + overhead + posrate;
 
-	QPalette pal;
-
-	if (Global::get().uiSession && (total > Global::get().iMaxBandwidth)) {
-		pal.setColor(qlBitrate->foregroundRole(), Qt::red);
-	}
-
-	qlBitrate->setPalette(pal);
+	qlBitrate->setEnabled(!Global::get().uiSession || total <= Global::get().iMaxBandwidth);
 
 	QString v = tr("%1 kbit/s (Audio %2, Position %4, Overhead %3)")
 					.arg(total / 1000.0, 0, 'f', 1)
@@ -633,6 +628,14 @@ void AudioOutputDialog::enablePulseAudioAttenuationOptionsFor(const QString &out
 
 AudioOutputDialog::AudioOutputDialog(Settings &st) : ConfigWidget(st) {
 	setupUi(this);
+
+	for (QWidget *widget : std::initializer_list< QWidget * >{
+			 qsOtherVolume, qliOtherVolume, qlOtherVolume, qcbAttenuateOthers, qcbAttenuateOthersOnTalk,
+			 qcbOnlyAttenuateSameOutput, qcbAttenuateLoopbacks, qcbAttenuateUsersOnPrioritySpeak, qsMinDistance,
+			 qlMinDistance, qsbMinimumDistance, qsMaxDistance, qlMaxDistance, qsbMaximumDistance, qsMinimumVolume,
+			 qlMinimumVolume, qsbMinimumVolume, qsBloom, qlBloom, qsbBloom }) {
+		widget->hide();
+	}
 
 	if (AudioOutputRegistrar::qmNew) {
 		QList< QString > keys = AudioOutputRegistrar::qmNew->keys();

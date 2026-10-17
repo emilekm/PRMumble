@@ -93,6 +93,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <optional>
 
 #include "widgets/EventFilters.h"
@@ -3010,21 +3011,21 @@ void MainWindow::on_PushToMute_triggered(bool down, QVariant) {
 
 void MainWindow::on_VolumeUp_triggered(bool down, QVariant) {
 	if (down) {
-		float vol = Global::get().s.fVolume + 0.1f;
-		if (vol > 2.0f) {
-			vol = 2.0f;
+		float steps = floorf(Global::get().s.fVolume * 10.0f + 0.5f);
+		if (steps < 20.0f) {
+			Global::get().s.fVolume = (steps + 1.0f) / 10.0f;
+			Global::get().s.save();
 		}
-		Global::get().s.fVolume = vol;
 	}
 }
 
 void MainWindow::on_VolumeDown_triggered(bool down, QVariant) {
 	if (down) {
-		float vol = Global::get().s.fVolume - 0.1f;
-		if (vol < 0.0f) {
-			vol = 0.0f;
+		float steps = ceilf(Global::get().s.fVolume * 10.0f - 0.5f);
+		if (steps > 0.0f) {
+			Global::get().s.fVolume = (steps - 1.0f) / 10.0f;
+			Global::get().s.save();
 		}
-		Global::get().s.fVolume = vol;
 	}
 }
 

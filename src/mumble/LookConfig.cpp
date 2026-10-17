@@ -32,6 +32,8 @@ static ConfigRegistrar registrar(1100, LookConfigNew);
 LookConfig::LookConfig(Settings &st) : ConfigWidget(st) {
 	setupUi(this);
 
+	qcbShowTransmitModeComboBox->hide();
+
 	if (!QSystemTrayIcon::isSystemTrayAvailable()) {
 		qgbTray->hide();
 	}
@@ -318,7 +320,7 @@ void LookConfig::save() const {
 	s.bShowVolumeAdjustments    = qcbShowVolumeAdjustments->isChecked();
 	s.bShowNicknamesOnly        = qcbShowNicknamesOnly->isChecked();
 	s.bShowContextMenuInMenuBar = qcbShowContextMenuInMenuBar->isChecked();
-	s.bShowTransmitModeComboBox = qcbShowTransmitModeComboBox->isChecked();
+	s.bShowTransmitModeComboBox = false;
 	s.bHighContrast             = qcbHighContrast->isChecked();
 	s.bChatBarUseSelection      = qcbChatBarUseSelection->isChecked();
 	s.bFilterHidesEmptyChannels = qcbFilterHidesEmptyChannels->isChecked();

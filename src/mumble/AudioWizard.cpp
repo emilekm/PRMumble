@@ -131,12 +131,11 @@ AudioWizard::AudioWizard(QWidget *p) : QWizard(p) {
 		}
 	}
 
-	if (Global::get().s.atTransmit == Settings::PushToTalk)
-		qrPTT->setChecked(true);
-	else if (Global::get().s.vsVAD == Settings::Amplitude)
-		qrAmplitude->setChecked(true);
-	else
-		qrSNR->setChecked(true);
+	qrPTT->setChecked(true);
+	for (QWidget *widget : std::initializer_list< QWidget * >{ qrSNR, qrAmplitude, qcbPositional,
+															   qcbAttenuateOthers, qgbNotifications }) {
+		widget->hide();
+	}
 
 	abVAD->qcBelow  = Qt::red;
 	abVAD->qcInside = Qt::yellow;
@@ -339,12 +338,10 @@ void AudioWizard::showPage(int pageid) {
 	if ((cp == qwpTrigger) || (cp == qwpSettings)) {
 		if (!bTransmitChanged)
 			Global::get().s.atTransmit = sOldSettings.atTransmit;
-		else if (qrPTT->isChecked())
-			Global::get().s.atTransmit = Settings::PushToTalk;
 		else
-			Global::get().s.atTransmit = Settings::VAD;
+			Global::get().s.atTransmit = Settings::PushToTalk;
 	} else {
-		Global::get().s.atTransmit = Settings::Continuous;
+		Global::get().s.atTransmit = Settings::PushToTalk;
 	}
 
 	setFocus(Qt::ActiveWindowFocusReason);
@@ -425,10 +422,8 @@ void AudioWizard::reject() {
 void AudioWizard::accept() {
 	if (!bTransmitChanged)
 		Global::get().s.atTransmit = sOldSettings.atTransmit;
-	else if (qrPTT->isChecked())
-		Global::get().s.atTransmit = Settings::PushToTalk;
 	else
-		Global::get().s.atTransmit = Settings::VAD;
+		Global::get().s.atTransmit = Settings::PushToTalk;
 
 	Global::get().s.bMute      = sOldSettings.bMute;
 	Global::get().s.bDeaf      = sOldSettings.bDeaf;

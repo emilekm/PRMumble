@@ -19,6 +19,7 @@
 #include "Log.h"
 #include "Logger.h"
 #include "MainWindow.h"
+#include "RealityData.h"
 #include "ServerHandler.h"
 #ifdef USE_ZEROCONF
 #	include "Zeroconf.h"
@@ -780,6 +781,8 @@ int main(int argc, char **argv) {
 
 	Global::get().lcd = new LCD();
 
+	Global::get().rd = new RealityData();
+
 	// Process any waiting events before initializing our MainWindow.
 	// The mumble:// URL support for Mac OS X happens through AppleEvents,
 	// so we need to loop a little before we begin.
@@ -970,6 +973,8 @@ int main(int argc, char **argv) {
 
 	delete Global::get().nam;
 	delete Global::get().lcd;
+
+	delete Global::get().rd;
 
 	delete Global::get().db;
 	delete Global::get().l;

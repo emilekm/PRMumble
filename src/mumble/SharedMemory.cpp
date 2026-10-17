@@ -5,6 +5,9 @@
 
 #include "SharedMemory.h"
 
+#include <algorithm>
+#include <cstring>
+
 unsigned int SharedMemory2::uiIndex = 0;
 
 QString SharedMemory2::name() const {
@@ -13,6 +16,11 @@ QString SharedMemory2::name() const {
 
 unsigned int SharedMemory2::size() const {
 	return a_ucData ? uiSize : 0;
+}
+
+void SharedMemory2::setData(const unsigned char *data, size_t length) {
+	if (a_ucData)
+		memcpy(a_ucData, data, std::min< size_t >(length, uiSize));
 }
 
 unsigned char *SharedMemory2::data() {

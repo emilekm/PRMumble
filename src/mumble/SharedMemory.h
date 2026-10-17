@@ -22,7 +22,7 @@ protected:
 	static unsigned int uiIndex;
 
 public:
-	SharedMemory2(QObject *p, unsigned int minsize, const QString &name = QString());
+	SharedMemory2(QObject *p, unsigned int minsize, const QString &name = QString(), bool create = false);
 	~SharedMemory2() Q_DECL_OVERRIDE;
 
 	void erase();
@@ -30,6 +30,7 @@ public:
 
 	QString name() const;
 	unsigned int size() const;
+	void setData(const unsigned char *data, size_t length);
 	unsigned char *data();
 	const unsigned char *data() const;
 };

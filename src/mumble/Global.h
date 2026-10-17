@@ -28,6 +28,7 @@ class PluginManager;
 class QSettings;
 class Overlay;
 class LCD;
+class RealityData;
 class Zeroconf;
 class OverlayClient;
 class DeveloperConsole;
@@ -65,6 +66,7 @@ public:
 	Overlay *o;
 #endif
 	LCD *lcd;
+	RealityData *rd;
 	Zeroconf *zeroconf;
 	QNetworkAccessManager *nam;
 	DeveloperConsole *c;

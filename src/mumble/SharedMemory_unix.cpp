@@ -17,7 +17,7 @@ struct SharedMemory2Private {
 	int iShmemFD;
 };
 
-SharedMemory2::SharedMemory2(QObject *p, unsigned int minsize, const QString &memname) : QObject(p) {
+SharedMemory2::SharedMemory2(QObject *p, unsigned int minsize, const QString &memname, bool create) : QObject(p) {
 	a_ucData = nullptr;
 
 	d           = new SharedMemory2Private();
@@ -25,10 +25,11 @@ SharedMemory2::SharedMemory2(QObject *p, unsigned int minsize, const QString &me
 
 	int prot = PROT_READ;
 
-	if (memname.isEmpty()) {
+	if (memname.isEmpty() || create) {
+		const QString baseName = memname.isEmpty() ? QStringLiteral("MumbleOverlayMemory") : memname;
 		prot |= PROT_WRITE;
 		for (int i = 0; i < 100; ++i) {
-			qsName      = QString::fromLatin1("/MumbleOverlayMemory%1").arg(++uiIndex);
+			qsName      = QString::fromLatin1("/%1%2").arg(baseName).arg(++uiIndex);
 			d->iShmemFD = shm_open(qsName.toUtf8().constData(), O_RDWR | O_CREAT | O_EXCL, 0600);
 			if (d->iShmemFD != -1) {
 				if (ftruncate(d->iShmemFD, minsize) == 0) {

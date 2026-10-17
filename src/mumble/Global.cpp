@@ -124,6 +124,7 @@ Global::Global(const QString &qsConfigPath) {
 
 	zeroconf = nullptr;
 	lcd      = nullptr;
+	rd       = nullptr;
 	l        = nullptr;
 
 #ifdef USE_OVERLAY

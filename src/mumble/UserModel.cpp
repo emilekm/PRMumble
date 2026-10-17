@@ -17,6 +17,7 @@
 #	include "Overlay.h"
 #endif
 #include "ChannelListenerManager.h"
+#include "RealityData.h"
 #include "ServerHandler.h"
 #include "Usage.h"
 #include "User.h"
@@ -1058,6 +1059,7 @@ ClientUser *UserModel::addUser(unsigned int id, const QString &name) {
 	connect(p, SIGNAL(recordingStateChanged()), this, SLOT(userStateChanged()));
 	connect(p, &ClientUser::localVolumeAdjustmentsChanged, this, &UserModel::userStateChanged);
 	connect(p, &ClientUser::localNicknameChanged, this, &UserModel::userStateChanged);
+	connect(p, &ClientUser::positionChanged, this, &UserModel::userStateChanged);
 
 	Channel *c       = Channel::get(Mumble::ROOT_CHANNEL_ID);
 	ModelItem *citem = ModelItem::c_qhChannels.value(c);
@@ -1987,6 +1989,7 @@ void UserModel::updateOverlay() const {
 	Global::get().o->updateOverlay();
 #endif
 	Global::get().lcd->updateUserView();
+	Global::get().rd->update();
 }
 
 

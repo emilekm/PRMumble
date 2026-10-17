@@ -8,7 +8,6 @@
 #endif
 #include "AudioInput.h"
 #include "AudioOutput.h"
-#include "AudioWizard.h"
 #include "Cert.h"
 #include "Database.h"
 #include "DeveloperConsole.h"
@@ -844,32 +843,28 @@ int main(int argc, char **argv) {
 
 	a.setQuitOnLastWindowClosed(false);
 
-	if (!Global::get().s.audioWizardShown) {
-		auto wizard = std::make_unique< AudioWizard >(Global::get().mw);
-		wizard->exec();
-
-		Global::get().s.audioWizardShown = true;
-	}
+	// PR ships tuned audio defaults, so the first-start AudioWizard is skipped
+	Global::get().s.audioWizardShown = true;
 
 	if (!CertWizard::validateCert(Global::get().s.kpCertificate)) {
-		QFile qf(qdCert.absoluteFilePath(QLatin1String("MumbleAutomaticCertificateBackup.p12")));
+		// Migrate the certificate backup written by older PR Mumble releases
+		if (QFile::exists(qdCert.absoluteFilePath(QLatin1String("PR_MumbleAutomaticCertificateBackup.p12"))))
+			QFile::copy(qdCert.absoluteFilePath(QLatin1String("PR_MumbleAutomaticCertificateBackup.p12")),
+						qdCert.absoluteFilePath(QLatin1String("PRMumbleCertificateBackup.p12")));
+
+		QFile qf(qdCert.absoluteFilePath(QLatin1String("PRMumbleCertificateBackup.p12")));
 		if (qf.open(QIODevice::ReadOnly | QIODevice::Unbuffered)) {
 			Settings::KeyPair kp = CertWizard::importCert(qf.readAll());
 			qf.close();
 			if (CertWizard::validateCert(kp))
 				Global::get().s.kpCertificate = kp;
 		}
+		// PR: generate a certificate silently instead of running the CertWizard
 		if (!CertWizard::validateCert(Global::get().s.kpCertificate)) {
-			CertWizard *cw = new CertWizard(Global::get().mw);
-			cw->exec();
-			delete cw;
-
-			if (!CertWizard::validateCert(Global::get().s.kpCertificate)) {
-				Global::get().s.kpCertificate = CertWizard::generateNewCert();
-				if (qf.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Unbuffered)) {
-					qf.write(CertWizard::exportCert(Global::get().s.kpCertificate));
-					qf.close();
-				}
+			Global::get().s.kpCertificate = CertWizard::generateNewCert();
+			if (qf.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Unbuffered)) {
+				qf.write(CertWizard::exportCert(Global::get().s.kpCertificate));
+				qf.close();
 			}
 		}
 	}
@@ -881,18 +876,12 @@ int main(int argc, char **argv) {
 						   "or you will no longer be able to connect to servers you are registered on."));
 
 #ifdef QT_NO_DEBUG
-	// Only perform the version-check for non-debug builds
+	// PR Mumble is updated by PRUpdater, so only snapshot builds run the version check
+#	ifdef SNAPSHOT_BUILD
 	if (Global::get().s.bUpdateCheck) {
-		// Use different settings for the version checks depending on whether this is a snapshot build
-		// or a normal release build
-#	ifndef SNAPSHOT_BUILD
-		// release build
-		new VersionCheck(true, Global::get().mw);
-#	else
-		// snapshot build
 		new VersionCheck(false, Global::get().mw, true);
-#	endif
 	}
+#	endif
 
 	if (Global::get().s.bPluginCheck) {
 		Global::get().pluginManager->checkForPluginUpdates();
@@ -909,7 +898,8 @@ int main(int argc, char **argv) {
 		OpenURLEvent *oue = new OpenURLEvent(a.quLaunchURL);
 		qApp->postEvent(Global::get().mw, oue);
 #endif
-	} else if (!options.startHiddenInTray || Global::get().s.bAutoConnect) {
+	} else if (Global::get().s.bAutoConnect) {
+		// PR: the game passes a URL; never pop up the connect dialog
 		Global::get().mw->on_qaServerConnect_triggered(true);
 	}
 

@@ -563,6 +563,8 @@ void Server::msgAuthenticate(ServerUser *uSource, MumbleProto::Authenticate &msg
 			mpus.set_comment(u8(u->qsComment));
 		if (!u->qsHash.isEmpty())
 			mpus.set_hash(u8(u->qsHash));
+		if (! u->qsIdentity.isEmpty())
+			mpus.set_plugin_identity(u8(u->qsIdentity));
 
 
 		for (unsigned int channelID : m_channelListenerManager.getListenedChannelsForUser(u->uiSession)) {
@@ -981,7 +983,7 @@ void Server::msgUserState(ServerUser *uSource, MumbleProto::UserState &msg) {
 	if ((pDstServerUser != uSource)
 		&& (msg.has_self_deaf() || msg.has_self_mute() || msg.has_plugin_context() || msg.has_plugin_identity()
 			|| msg.has_recording() || msg.listening_channel_add_size() > 0
-			|| msg.listening_channel_remove_size() > 0)) {
+			|| msg.listening_channel_remove_size() > 0 || msg.position_size() > 0)) {
 		return;
 	}
 
@@ -1035,10 +1037,16 @@ void Server::msgUserState(ServerUser *uSource, MumbleProto::UserState &msg) {
 		}
 	}
 
+	// PRMumble relays in-game positions (x, y, z) and plugin identities to all clients.
+	if (msg.position_size() == 3) {
+		bBroadcast = true;
+	} else if (msg.position_size() > 0) {
+		msg.clear_position();
+	}
+
 	if (msg.has_plugin_identity()) {
 		pDstServerUser->qsIdentity = u8(msg.plugin_identity());
-		// Make sure to clear this from the packet so we don't broadcast it
-		msg.clear_plugin_identity();
+		bBroadcast = true;
 	}
 
 	if (!comment.isNull()) {

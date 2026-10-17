@@ -30,12 +30,9 @@
 #include <QFileInfo>
 #include <QImageReader>
 #include <QMessageBox>
-#include <QOperatingSystemVersion>
-#include <QProcessEnvironment>
 #include <QRegularExpression>
 #include <QSettings>
 #include <QStandardPaths>
-#include <QSystemTrayIcon>
 
 #include <boost/typeof/typeof.hpp>
 
@@ -525,14 +522,6 @@ Settings::Settings() {
 	// Therefore we disable it by default until the issues are fixed.
 	echoOption = EchoCancelOptionID::DISABLED;
 #endif
-#ifdef Q_OS_WIN
-	// Don't enable minimize to tray by default on Windows >= 7
-	bHideInTray = QOperatingSystemVersion::current() < QOperatingSystemVersion::Windows7;
-#else
-	const bool isUnityDesktop =
-		QProcessEnvironment::systemEnvironment().value(QLatin1String("XDG_CURRENT_DESKTOP")) == QLatin1String("Unity");
-	bHideInTray = !isUnityDesktop && QSystemTrayIcon::isSystemTrayAvailable();
-#endif
 #ifdef NO_UPDATE_CHECK
 	bUpdateCheck = false;
 	bPluginCheck = false;
@@ -550,8 +539,7 @@ Settings::Settings() {
 #endif
 
 	for (int i = Log::firstMsgType; i <= Log::lastMsgType; ++i) {
-		qmMessages.insert(i,
-						  Settings::LogConsole | Settings::LogBalloon | Settings::LogTTS | Settings::LogMessageLimit);
+		qmMessages.insert(i, Settings::LogConsole);
 		qmMessageSounds.insert(i, QString());
 	}
 
@@ -584,6 +572,12 @@ Settings::Settings() {
 	qmMessages[Log::OtherMutedOther] = Settings::LogConsole;
 	qmMessages[Log::UserRenamed]     = Settings::LogConsole;
 	qmMessages[Log::PluginMessage]   = Settings::LogConsole;
+
+	qmMessages[Log::UserJoin]        = Settings::LogNone;
+	qmMessages[Log::UserLeave]       = Settings::LogNone;
+	qmMessages[Log::OtherMutedOther] = Settings::LogNone;
+	qmMessages[Log::ChannelJoin]     = Settings::LogNone;
+	qmMessages[Log::ChannelLeave]    = Settings::LogNone;
 
 	qlShortcuts = defaultPRShortcuts();
 }

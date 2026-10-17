@@ -224,9 +224,9 @@ struct Settings {
 	static const QString cqsDefaultMuteCue;
 	static const QPoint UNSPECIFIED_POSITION;
 
-	AudioTransmit atTransmit = VAD;
+	AudioTransmit atTransmit = PushToTalk;
 	quint64 uiDoublePush     = 0;
-	quint64 pttHold          = 0;
+	quint64 pttHold          = 300;
 
 	bool audioCueEnabledPTT = true;
 	bool audioCueEnabledVAD = false;
@@ -237,12 +237,12 @@ struct Settings {
 	bool muteCueShown   = false;
 	QString qsTxMuteCue = cqsDefaultMuteCue;
 
-	bool bTransmitPosition         = false;
+	bool bTransmitPosition         = true;
 	bool unmuteOnUndeaf            = false;
 	bool bMute                     = false;
 	bool bDeaf                     = false;
 	bool bTTS                      = false;
-	bool bUserTop                  = true;
+	bool bUserTop                  = false;
 	float notificationVolume       = 1.0f;
 	float cueVolume                = 1.0f;
 	bool bWhisperFriends           = false;
@@ -283,8 +283,8 @@ struct Settings {
 	int iFramesPerPacket                = 2;
 	QString qsAudioInput                = {};
 	QString qsAudioOutput               = {};
-	float fVolume                       = 1.0f;
-	float fOtherVolume                  = 0.5f;
+	float fVolume                       = 0.6f;
+	float fOtherVolume                  = 1.0f;
 	float listenerAttenuationFactor     = 1.0f;
 	bool alwaysAttenuateListeners       = false;
 	bool bAttenuateOthersOnTalk         = false;
@@ -292,7 +292,7 @@ struct Settings {
 	bool bAttenuateUsersOnPrioritySpeak = false;
 	bool bOnlyAttenuateSameOutput       = false;
 	bool bAttenuateLoopbacks            = false;
-	int iOutputDelay                    = 5;
+	int iOutputDelay                    = 1;
 
 	QString qsALSAInput        = QStringLiteral("default");
 	QString qsALSAOutput       = QStringLiteral("default");
@@ -345,11 +345,11 @@ struct Settings {
 	bool bExclusiveOutput         = false;
 	EchoCancelOptionID echoOption = EchoCancelOptionID::SPEEX_MIXED;
 	bool bPositionalAudio         = false;
-	bool bPositionalHeadphone     = false;
-	float fAudioMinDistance       = 1.0f;
-	float fAudioMaxDistance       = 15.0f;
+	bool bPositionalHeadphone     = true;
+	float fAudioMinDistance       = 5.0f;
+	float fAudioMaxDistance       = 77.5f;
 	float fAudioMaxDistVolume     = 0.0f;
-	float fAudioBloom             = 0.5f;
+	float fAudioBloom             = 0.15f;
 	/// Contains the settings for each individual plugin. The key in this map is the Hex-represented SHA-1
 	/// hash of the plugin's UTF-8 encoded absolute file-path on the hard-drive.
 	QHash< QString, PluginSetting > qhPluginSettings = {};
@@ -420,8 +420,8 @@ struct Settings {
 	QByteArray qbaMinimalViewGeometry    = {};
 	QByteArray qbaMinimalViewState       = {};
 	bool preventWindowStates             = false;
-	WindowLayout wlWindowLayout          = LayoutClassic;
-	ChannelExpand ceExpand               = ChannelsWithUsers;
+	WindowLayout wlWindowLayout          = LayoutStacked;
+	ChannelExpand ceExpand               = NoChannels;
 	ChannelDrag ceChannelDrag            = Ask;
 	ChannelDrag ceUserDrag               = Move;
 	bool bMinimalView                    = false;
@@ -430,10 +430,10 @@ struct Settings {
 	QuitBehavior quitBehavior            = QuitBehavior::ALWAYS_ASK;
 	bool bEnableDeveloperMenu            = false;
 	bool bLockLayout                     = false;
-	bool bHideInTray                     = false;
-	bool bStateInTray                    = true;
-	bool bUsage                          = true;
-	bool bShowUserCount                  = false;
+	bool bHideInTray                     = true;
+	bool bStateInTray                    = false;
+	bool bUsage                          = false;
+	bool bShowUserCount                  = true;
 	bool bShowVolumeAdjustments          = true;
 	bool bShowNicknamesOnly              = false;
 	bool bChatBarUseSelection            = false;
@@ -458,8 +458,8 @@ struct Settings {
 
 	QString qsImagePath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
 
-	bool bUpdateCheck      = true;
-	bool bPluginCheck      = true;
+	bool bUpdateCheck      = false;
+	bool bPluginCheck      = false;
 	bool bPluginAutoUpdate = false;
 
 	// PTT Button window

@@ -127,7 +127,7 @@ def getDefaultValueForType(dataType):
     elif dataType in ["QSize", "QSizeF"]:
         return "{ 8, 12 }"
     elif dataType in ["AudioTransmit"]:
-        return "Settings::PushToTalk"
+        return "Settings::Continuous"
     elif dataType in ["VADSource"]:
         return "Settings::SignalToNoise"
     elif dataType in ["LoopMode"]:

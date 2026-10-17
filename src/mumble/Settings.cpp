@@ -17,7 +17,10 @@
 #include "Global.h"
 
 #if defined(Q_OS_WIN)
+#	include "GlobalShortcutTypes.h"
 #	include "GlobalShortcut_win.h"
+
+#	include <QUuid>
 #endif
 
 #include "../../overlay/overlay.h"
@@ -581,6 +584,52 @@ Settings::Settings() {
 	qmMessages[Log::OtherMutedOther] = Settings::LogConsole;
 	qmMessages[Log::UserRenamed]     = Settings::LogConsole;
 	qmMessages[Log::PluginMessage]   = Settings::LogConsole;
+
+	qlShortcuts = defaultPRShortcuts();
+}
+
+QList< Shortcut > Settings::defaultPRShortcuts() {
+	QList< Shortcut > shortcuts;
+#ifdef Q_OS_WIN
+	// DirectInput keyboard scancodes, converted to the raw input format by GlobalShortcutWin::migrateSettings().
+	const QUuid keyboard(QLatin1String("{6f1d2b61-d5a0-11cf-bfc7-444553540000}"));
+
+	auto addButton = [&](int index, quint32 scancode, std::optional< ShortcutTarget > target = std::nullopt) {
+		Shortcut s;
+		s.iIndex    = index;
+		s.qlButtons = { QVariant(QVariantList{ scancode, keyboard }) };
+		if (target) {
+			s.qvData = QVariant::fromValue(*target);
+		}
+		shortcuts << s;
+	};
+	auto target = [](int channel, const char *group, bool children) {
+		ShortcutTarget t;
+		t.bUsers       = false;
+		t.iChannel     = channel;
+		t.qsGroup      = QLatin1String(group);
+		t.bChildren    = children;
+		t.bForceCenter = true;
+		return t;
+	};
+
+	addButton(GlobalShortcutType::PushToTalk, 8964);
+	addButton(GlobalShortcutType::PRSquadRadio, 20996, target(-3, "", false));
+	addButton(GlobalShortcutType::PRSLToAllSL, 14084, target(-2, "bf2_squad_leader", true));
+
+	const char *squadLeaderGroups[] = { "bf2_first_squad_leader",   "bf2_second_squad_leader", "bf2_third_squad_leader",
+										"bf2_fourth_squad_leader",  "bf2_fifth_squad_leader",  "bf2_sixth_squad_leader",
+										"bf2_seventh_squad_leader", "bf2_eighth_squad_leader", "bf2_ninth_squad_leader" };
+	const quint32 squadLeaderScancodes[] = { 20228, 20484, 20740, 19204, 19460, 19716, 18180, 18436, 18692 };
+	for (int i = 0; i < 9; ++i) {
+		addButton(GlobalShortcutType::PRSLToSL1 + i, squadLeaderScancodes[i], target(-2, squadLeaderGroups[i], true));
+	}
+
+	addButton(GlobalShortcutType::PRSLToCommander, 46340, target(-2, "bf2_commander", true));
+
+	shortcuts = GlobalShortcutWin::migrateSettings(shortcuts);
+#endif
+	return shortcuts;
 }
 
 bool Settings::doEcho() const {

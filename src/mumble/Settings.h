@@ -591,6 +591,8 @@ struct Settings {
 
 	void migratePluginSettings(const MigratedPath &path);
 
+	static QList< Shortcut > defaultPRShortcuts();
+
 private:
 	void verifySettingsKeys() const;
 	QString findSettingsLocation(bool legacy = false, bool *foundExistingFile = nullptr) const;

@@ -29,7 +29,8 @@ std::optional< ThemeInfo::StyleInfo > Themes::getThemeStyle(const Settings &sett
 	QString themeName      = darkMode ? settings.themeDarkName : settings.themeName;
 
 	if (themeName.isEmpty() && themeStyleName.isEmpty()) {
-		return std::nullopt;
+		themeName      = QStringLiteral("PRMumble");
+		themeStyleName = QStringLiteral("Reality");
 	}
 
 	const ThemeMap themes = getThemes();
@@ -221,7 +222,7 @@ QVector< QDir > Themes::getSearchDirectories() {
 }
 
 QString Themes::userStylesheetPath() {
-	return Global::get().qdBasePath.absolutePath() + QLatin1String("/user.qss");
+	return Global::get().qdBasePath.absolutePath() + QLatin1String("/Reality.qss");
 }
 
 bool Themes::readStylesheet(const QString &stylesheetFn, QString &stylesheetContent) {

@@ -166,7 +166,7 @@ static void selectThemeStyle(const std::optional< ThemeInfo::StyleInfo > &config
 			}
 		}
 	} else {
-		comboBox->setCurrentIndex(0); // "None"
+		comboBox->setCurrentIndex(0);
 	}
 }
 
@@ -182,8 +182,6 @@ void LookConfig::reloadThemes() {
 
 	qcbLightTheme->clear();
 	qcbDarkTheme->clear();
-	qcbLightTheme->addItem(tr("None"));
-	qcbDarkTheme->addItem(tr("None"));
 	for (ThemeMap::const_iterator theme = themes.begin(); theme != themes.end(); ++theme) {
 		for (ThemeInfo::StylesMap::const_iterator styleit = theme->styles.begin(); styleit != theme->styles.end();
 			 ++styleit) {

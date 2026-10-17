@@ -193,6 +193,8 @@ ShortcutTargetDialog::ShortcutTargetDialog(const ShortcutTarget &st, QWidget *pw
 	qcbChildren->setChecked(st.bChildren);
 	qcbShoutSubchans->setChecked(st.bChildren);
 
+	qcbUser->setItemDelegate(new QStyledItemDelegate(qcbUser));
+
 	// Insert all known friends into the possible targets list
 	const QMap< QString, QString > &friends = Global::get().db->getFriends();
 	if (!friends.isEmpty()) {

@@ -402,6 +402,11 @@ int main(int argc, char **argv) {
 	a.setOrganizationDomain(QLatin1String("mumble.info"));
 	a.setQuitOnLastWindowClosed(false);
 
+	QPalette linkPalette(a.palette());
+	linkPalette.setColor(QPalette::Link, QColor(0x33, 0x99, 0xcc));
+	linkPalette.setColor(QPalette::LinkVisited, QColor(0x33, 0x99, 0xcc));
+	a.setPalette(linkPalette);
+
 	a.setDesktopFileName("info.mumble.Mumble");
 
 #ifdef Q_OS_WIN
@@ -789,6 +794,7 @@ int main(int argc, char **argv) {
 
 	// Main Window
 	Global::get().mw = new MainWindow(nullptr);
+	Global::get().mw->qteLog->document()->setDefaultStyleSheet(a.styleSheet());
 	if (!options.startHiddenInTray) {
 		Global::get().mw->showRaiseWindow();
 	}

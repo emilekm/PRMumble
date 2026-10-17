@@ -14,6 +14,7 @@
 #include <QtGui/QCloseEvent>
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QMessageBox>
+#include <QtWidgets/QStyledItemDelegate>
 
 VoiceRecorderDialog::VoiceRecorderDialog(QWidget *p) : QDialog(p), qtTimer(new QTimer(this)) {
 	qtTimer->setObjectName(QLatin1String("qtTimer"));
@@ -71,6 +72,7 @@ VoiceRecorderDialog::VoiceRecorderDialog(QWidget *p) : QDialog(p), qtTimer(new Q
 		Global::get().s.iRecordingFormat = 0;
 
 	qcbFormat->setCurrentIndex(Global::get().s.iRecordingFormat);
+	qcbFormat->setItemDelegate(new QStyledItemDelegate(qcbFormat));
 }
 
 VoiceRecorderDialog::~VoiceRecorderDialog() {

@@ -10,6 +10,7 @@
 #include "Global.h"
 
 #include <QSignalBlocker>
+#include <QStyledItemDelegate>
 #include <QtNetwork/QHostAddress>
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkProxy>
@@ -33,6 +34,8 @@ NetworkConfig::NetworkConfig(Settings &st) : ConfigWidget(st) {
 															   qcbPluginUpdateCheck, qcbPluginAutoUpdate }) {
 		widget->hide();
 	}
+
+	qcbType->setItemDelegate(new QStyledItemDelegate(qcbType));
 }
 
 QString NetworkConfig::title() const {

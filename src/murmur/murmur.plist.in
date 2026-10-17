@@ -5,9 +5,9 @@
 	<key>CFBundleExecutable</key>
 	<string>murmurd</string>
 	<key>CFBundleGetInfoString</key>
-	<string>@PROJECT_DESCRIPTION@</string>
+	<string>An open source, low-latency, high quality voice chat software primarily intended for use while gaming. Customized for Project Reality.</string>
 	<key>CFBundleIdentifier</key>
-	<string>mumble-server</string>
+	<string>com.reality.PRMumble.PRMurmur</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleSignature</key>
@@ -15,6 +15,6 @@
 	<key>CFBundleVersion</key>
 	<string>@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright (c) 2005-@MUMBLE_BUILD_YEAR@ The Mumble Developers</string>
+	<string>Copyright (c) Project Reality, Copyright (c) 2005-@MUMBLE_BUILD_YEAR@ The Mumble Developers</string>
 </dict>
 </plist>

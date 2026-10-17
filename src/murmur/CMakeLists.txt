@@ -4,7 +4,7 @@
 # Mumble source tree or at <https://www.mumble.info/LICENSE>.
 
 set(MURMUR_RC "${CMAKE_CURRENT_BINARY_DIR}/murmur.rc")
-set(MURMUR_ICON "${CMAKE_SOURCE_DIR}/icons/murmur.ico")
+set(MURMUR_ICON "${CMAKE_SOURCE_DIR}/icons/reality/murmur.ico")
 set(MURMUR_PLIST "${CMAKE_CURRENT_BINARY_DIR}/murmur.plist")
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/murmur.plist.in" "${MURMUR_PLIST}")
@@ -71,6 +71,7 @@ set_target_properties(mumble_server_lib
 set_target_properties(mumble-server
 	PROPERTIES
 		AUTOMOC ON
+		OUTPUT_NAME "prmurmurd"
 		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 

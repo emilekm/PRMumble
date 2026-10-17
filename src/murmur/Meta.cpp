@@ -116,8 +116,8 @@ MetaParams::MetaParams() {
 	iSQLiteWAL                 = 0;
 	iDBPort                    = 0;
 	qsDBDriver                 = "SQLITE";
-	qsLogfile                  = "mumble-server.log";
-	logSys                     = "mumble-server";
+	qsLogfile                  = "prmurmur.log";
+	logSys                     = "prmurmur";
 
 	iLogDays = 31;
 
@@ -233,9 +233,9 @@ void MetaParams::read(QString fname) {
 
 		for (const QString &p : datapaths) {
 			if (!p.isEmpty()) {
-				// Prefer "mumble-server.ini" but for legacy reasons also keep looking for "murmur.ini"
+				// Prefer "prmurmur.ini" but also accept the upstream file names
 				for (const QString &currentFileName :
-					 { QStringLiteral("mumble-server.ini"), QStringLiteral("murmur.ini") }) {
+					 { QStringLiteral("prmurmur.ini"), QStringLiteral("mumble-server.ini"), QStringLiteral("murmur.ini") }) {
 					QFileInfo fi(p, currentFileName);
 					if (fi.exists() && fi.isReadable()) {
 						qdBasePath            = QDir(p);
@@ -247,7 +247,7 @@ void MetaParams::read(QString fname) {
 		}
 		if (qsAbsSettingsFilePath.isEmpty()) {
 			qdBasePath            = QDir(datapaths.at(0));
-			qsAbsSettingsFilePath = qdBasePath.absolutePath() + QLatin1String("/mumble-server.ini");
+			qsAbsSettingsFilePath = qdBasePath.absolutePath() + QLatin1String("/prmurmur.ini");
 
 			if (!qdBasePath.exists()) {
 				qdBasePath.mkpath(".");
@@ -715,9 +715,10 @@ QString locateDatabase() {
 	// We use a lambda, so we can easily "break out" of all levels of nested loops using return
 	QString path = [&]() {
 		for (const QString &currentDir : datapaths) {
-			// Prefer "mumble-server.sqlite", but for legacy reasons also keep looking for "murmur.sqlite"
+			// Prefer "prmurmur.sqlite", but also accept the upstream file names
 			for (const QString &currentFilename :
-				 { QStringLiteral("mumble-server.sqlite"), QStringLiteral("murmur.sqlite") }) {
+				 { QStringLiteral("prmurmur.sqlite"), QStringLiteral("mumble-server.sqlite"),
+				   QStringLiteral("murmur.sqlite") }) {
 				QFile currentFile(currentDir + "/" + currentFilename);
 
 				if (currentFile.exists()) {
@@ -730,7 +731,7 @@ QString locateDatabase() {
 	}();
 
 	if (path.isEmpty()) {
-		path = Meta::mp->qdBasePath.absoluteFilePath("mumble-server.sqlite");
+		path = Meta::mp->qdBasePath.absoluteFilePath("prmurmur.sqlite");
 	}
 
 	return QDir::toNativeSeparators(path);

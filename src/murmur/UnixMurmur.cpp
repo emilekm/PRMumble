@@ -364,10 +364,10 @@ const QString UnixMurmur::trySystemIniFiles(const QString &fname) {
 
 	QStringList inipaths;
 
-	inipaths << QLatin1String("/usr/local/etc/mumble-server.ini");
-	inipaths << QLatin1String("/usr/local/etc/murmur.ini");
-	inipaths << QLatin1String("/etc/mumble-server.ini");
-	inipaths << QLatin1String("/etc/murmur.ini");
+	inipaths << QLatin1String("/usr/local/etc/prmumble-server.ini");
+	inipaths << QLatin1String("/usr/local/etc/prmurmur.ini");
+	inipaths << QLatin1String("/etc/prmumble-server.ini");
+	inipaths << QLatin1String("/etc/prmurmur.ini");
 
 	for (const QString &f : inipaths) {
 		QFileInfo fi(f);

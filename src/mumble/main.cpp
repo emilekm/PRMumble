@@ -281,7 +281,7 @@ CLIOptions parseCLI(int argc, char **argv) {
 	app.add_flag("-m,--multiple", options.allowMultiple, "Allow multiple instances of the client to be started.")
 		->group(CLIOptions::CLI_GENERAL_SECTION);
 
-	app.add_flag("--no-identity", options.suppressIdentity, "Suppress loading of identity files (i.e., certificates).")
+	app.add_flag("-n,--noidentity,--no-identity", options.suppressIdentity, "Suppress loading of identity files (i.e., certificates).")
 		->group(CLIOptions::CLI_GENERAL_SECTION);
 
 	app.add_option("--jack-name", options.jackClientName, "Set custom Jack client name.")
@@ -302,7 +302,7 @@ CLIOptions parseCLI(int argc, char **argv) {
 
 
 
-	app.add_flag("--hidden", options.startHiddenInTray, "Start Mumble hidden in the system tray.")
+	app.add_flag("-z,--minimize,--hidden", options.startHiddenInTray, "Start Mumble hidden in the system tray.")
 		->group(CLIOptions::CLI_GENERAL_SECTION);
 
 	app.add_option("--locale", options.locale,

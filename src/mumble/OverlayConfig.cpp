@@ -40,11 +40,12 @@ static const int OVERLAYCONFIG_BUILTIN_ROLE = Qt::UserRole + 1;
 
 // Hide overlay config for Mac OS X universal builds
 #if !defined(USE_MAC_UNIVERSAL)
-static ConfigWidget *OverlayConfigDialogNew(Settings &st) {
+[[maybe_unused]] static ConfigWidget *OverlayConfigDialogNew(Settings &st) {
 	return new OverlayConfig(st);
 }
 
-static ConfigRegistrar registrarOverlayConfig(6000, OverlayConfigDialogNew);
+// The overlay config page is hidden in PRMumble.
+// static ConfigRegistrar registrarOverlayConfig(6000, OverlayConfigDialogNew);
 #endif
 
 void OverlayConfig::initDisplayFps() {

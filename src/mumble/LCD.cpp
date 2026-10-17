@@ -34,7 +34,7 @@ LCDEngineRegistrar::~LCDEngineRegistrar() {
 	}
 }
 
-static ConfigWidget *LCDConfigDialogNew(Settings &st) {
+[[maybe_unused]] static ConfigWidget *LCDConfigDialogNew(Settings &st) {
 	return new LCDConfig(st);
 }
 
@@ -61,7 +61,7 @@ void LCDDeviceManager::initialize() {
 		}
 	}
 	if (qlDevices.count() > 0) {
-		crLCD = new ConfigRegistrar(5900, LCDConfigDialogNew);
+		crLCD = NULL; //new ConfigRegistrar(5900, LCDConfigDialogNew);
 	} else {
 		crLCD = nullptr;
 	}

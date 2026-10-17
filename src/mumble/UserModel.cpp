@@ -1985,10 +1985,6 @@ bool UserModel::dropMimeData(const QMimeData *md, Qt::DropAction, int row, int c
 }
 
 void UserModel::updateOverlay() const {
-#ifdef USE_OVERLAY
-	Global::get().o->updateOverlay();
-#endif
-	Global::get().lcd->updateUserView();
 	Global::get().rd->update();
 }
 

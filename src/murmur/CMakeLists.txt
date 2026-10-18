@@ -30,6 +30,8 @@ add_library(mumble_server_lib STATIC
 	"PBKDF2.h"
 	"PRGameChannels.cpp"
 	"PRGameChannels.h"
+	"PRGameSorting.cpp"
+	"PRGameSorting.h"
 	"Register.cpp"
 	"RPC.cpp"
 	"Server.cpp"

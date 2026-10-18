@@ -230,7 +230,10 @@ void Server::setTempGroups(int userid, int sessionId, Channel *cChannel, const Q
 		QWriteLocker wl(&qrwlVoiceThread);
 
 		for (Group *g : cChannel->qhGroups) {
-			g->qsTemporary.remove(userid);
+			// Negative entries are sessions, so a negative user ID (unregistered user) must not be stored
+			if (userid >= 0) {
+				g->qsTemporary.remove(userid);
+			}
 			if (sessionId != 0)
 				g->qsTemporary.remove(-sessionId);
 		}
@@ -240,7 +243,9 @@ void Server::setTempGroups(int userid, int sessionId, Channel *cChannel, const Q
 			if (!g) {
 				g = new Group(cChannel, gname);
 			}
-			g->qsTemporary.insert(userid);
+			if (userid >= 0) {
+				g->qsTemporary.insert(userid);
+			}
 			if (sessionId != 0)
 				g->qsTemporary.insert(-sessionId);
 		}

@@ -60,6 +60,8 @@ else()
 	add_executable(mumble-server "main.cpp")
 endif()
 
+target_sources(mumble-server PRIVATE "PRGameAdmin.cpp" "PRGameAdmin.h")
+
 target_link_libraries(mumble-server mumble_server_lib CLI11::CLI11)
 
 set_property(TARGET mumble-server PROPERTY INTERPROCEDURAL_OPTIMIZATION ${lto})

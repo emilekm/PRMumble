@@ -11,6 +11,9 @@ The client is meant to be executed soley by the PR Launcher on game launch since
 incapable of connecting to regular mumble servers and PR murmur without being in an active
 game session.
 
+To run a PR Mumble server (`prmurmurd`) and register game servers with it, see
+[docs/PRServerSetup.md](docs/PRServerSetup.md).
+
 # WINDOWS PREREQUISITES:
 Get all the prerequires listed here(Make sure you follow up on the "temporarily remove Microsoft Visual C++ 2010 * Redistributable for the installer to work"):
 

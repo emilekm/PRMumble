@@ -16,7 +16,7 @@ class App;
 
 namespace mumble {
 namespace db {
-	class ConnectionParameter;
+	struct ConnectionParameter;
 }
 } // namespace mumble
 

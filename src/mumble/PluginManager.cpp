@@ -50,6 +50,10 @@ static constexpr float PR_POSITION_UPDATE_THRESHOLD = 10.0f;
 #	include <QtCore/QStringList>
 #endif
 
+static QString pluginSettingsKey(const_plugin_ptr_t plugin) {
+	return QLatin1String(QCryptographicHash::hash(plugin->getFilePath().toUtf8(), QCryptographicHash::Sha1).toHex());
+}
+
 PluginManager::PluginManager(QSet< QString > *additionalSearchPaths, QObject *p)
 	: QObject(p), m_pluginCollectionLock(QReadWriteLock::NonRecursive), m_pluginHashMap(), m_positionalData(),
 	  m_positionalDataCheckTimer(), m_sentDataMutex(), m_sentData(),
@@ -357,9 +361,7 @@ void PluginManager::rescanPlugins() {
 		auto pluginIt = m_pluginHashMap.begin();
 		while (pluginIt != m_pluginHashMap.end()) {
 			plugin_ptr_t plugin = pluginIt.value();
-			QString pluginHash  = QLatin1String(
-                QCryptographicHash::hash(plugin->getFilePath().toUtf8(), QCryptographicHash::Sha1).toHex());
-			if (pluginKey == pluginHash) {
+			if (pluginKey == pluginSettingsKey(plugin)) {
 				if (setting.enabled) {
 					loadPlugin(plugin->getID());
 

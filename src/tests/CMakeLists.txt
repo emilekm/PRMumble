@@ -36,6 +36,7 @@ endif()
 if(server)
 	add_subdirectory("TestCrypt")
 	add_subdirectory("TestAudioReceiverBuffer")
+	add_subdirectory("TestPRGameChannels")
 endif()
 
 # Shared tests

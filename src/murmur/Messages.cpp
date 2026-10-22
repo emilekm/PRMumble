@@ -11,6 +11,7 @@
 #include "Group.h"
 #include "Meta.h"
 #include "MumbleConstants.h"
+#include "PRGameSorting.h"
 #include "ProtoUtils.h"
 #include "QtUtils.h"
 #include "Server.h"
@@ -992,6 +993,8 @@ void Server::msgUserState(ServerUser *uSource, MumbleProto::UserState &msg) {
 	*/
 	bool bBroadcast = false;
 
+	const bool prPluginDataChanged = msg.has_plugin_context() || msg.has_plugin_identity();
+
 	if (msg.has_texture()) {
 		QByteArray qba = blob(msg.texture());
 		if (pDstServerUser->iId >= 0) {
@@ -1266,6 +1269,10 @@ void Server::msgUserState(ServerUser *uSource, MumbleProto::UserState &msg) {
 			// clearACLCache calls clearWhisperTargetChache anyways
 			clearWhisperTargetCache();
 		}
+	}
+
+	if (prPluginDataChanged) {
+		PRGameSorting::sortUser(*this, *pDstServerUser);
 	}
 
 	emit userStateChanged(pDstServerUser);

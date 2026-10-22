@@ -28,6 +28,10 @@ add_library(mumble_server_lib STATIC
 	"Meta.h"
 	"PBKDF2.cpp"
 	"PBKDF2.h"
+	"PRGameChannels.cpp"
+	"PRGameChannels.h"
+	"PRGameSorting.cpp"
+	"PRGameSorting.h"
 	"Register.cpp"
 	"RPC.cpp"
 	"Server.cpp"
@@ -57,6 +61,8 @@ if(WIN32)
 else()
 	add_executable(mumble-server "main.cpp")
 endif()
+
+target_sources(mumble-server PRIVATE "PRGameAdmin.cpp" "PRGameAdmin.h")
 
 target_link_libraries(mumble-server mumble_server_lib CLI11::CLI11)
 

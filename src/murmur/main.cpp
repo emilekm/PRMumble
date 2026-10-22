@@ -9,6 +9,7 @@
 #include "License.h"
 #include "Logger.h"
 #include "Meta.h"
+#include "PRGameAdmin.h"
 #include "SSL.h"
 #include "ServerApplication.h"
 #include "Version.h"
@@ -140,6 +141,8 @@ struct CLIOptions {
 	bool limits = false;
 	std::optional< unsigned int > readSupwSrv;
 
+	PRGameAdmin::CLIOptions pr;
+
 	static constexpr const char *const CLI_ABOUT_SECTION          = "About";
 	static constexpr const char *const CLI_LOGGING_SECTION        = "Logging";
 	static constexpr const char *const CLI_ADMINISTRATION_SECTION = "Administration";
@@ -217,6 +220,7 @@ CLIOptions parseCLI(int argc, char **argv) {
 				 "Show licenses for third-party software used by Mumble server.")
 		->group(CLIOptions::CLI_ABOUT_SECTION);
 
+	PRGameAdmin::addCLIOptions(app, options.pr);
 
 	app.footer("If no inifile is provided, Mumble server will search for one in default locations.");
 
@@ -500,6 +504,10 @@ int main(int argc, char **argv) {
 			supw = QLatin1String(password);
 		}
 #endif
+
+		if (PRGameAdmin::isRequested(cli_options.pr)) {
+			return PRGameAdmin::run(cli_options.pr, Meta::getConnectionParameter());
+		}
 
 		if (!supw.isNull()) {
 			if (supw.isEmpty()) {

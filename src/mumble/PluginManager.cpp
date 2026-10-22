@@ -387,6 +387,16 @@ void PluginManager::rescanPlugins() {
 
 		it++;
 	}
+
+	// PR:BF2 sends the player's game state through the Link plugin, and PRMumble hides the plugin settings,
+	// so Link is enabled unless the user has saved settings for it
+	for (const plugin_ptr_t &plugin : m_pluginHashMap) {
+		if (plugin->getName() == QLatin1String("Link")
+			&& !Global::get().s.qhPluginSettings.contains(pluginSettingsKey(plugin))) {
+			loadPlugin(plugin->getID());
+			plugin->enablePositionalData(true);
+		}
+	}
 }
 
 const_plugin_ptr_t PluginManager::getPlugin(plugin_id_t pluginID) const {

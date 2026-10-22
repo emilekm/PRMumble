@@ -14,10 +14,13 @@
 namespace PRVoiceRouting {
 
 enum class Ear { Both, Left, Right };
+enum class Category { SquadRadio, SquadLeader };
 
 struct Config {
-	Ear squadRadioEar  = Ear::Both;
-	Ear squadLeaderEar = Ear::Both;
+	Ear squadRadioEar     = Ear::Both;
+	Ear squadLeaderEar    = Ear::Both;
+	bool squadRadioMuted  = false;
+	bool squadLeaderMuted = false;
 	/// False for mono output, which has no sides to route to
 	bool canPan = false;
 };
@@ -25,12 +28,19 @@ struct Config {
 /// How to play speech that doesn't play the default way
 struct Route {
 	Ear ear;
+	bool muted;
 
 	/// The gain for a speaker at the given horizontal position, negative being left
 	float gainFor(float speakerX) const;
 };
 
 std::optional< Route > route(bool isShout, bool speakerInListenerChannel, const Config &config);
+
+/// Muting is toggled on the main thread and read on the audio thread
+bool isMuted(Category category);
+/// @returns Whether the category is muted now
+bool toggleMuted(Category category);
+void unmuteAll();
 
 } // namespace PRVoiceRouting
 

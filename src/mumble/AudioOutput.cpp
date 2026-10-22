@@ -625,10 +625,13 @@ bool AudioOutput::mix(void *outbuff, unsigned int frameCount) {
 				}
 			}
 
-			const PRVoiceRouting::Config prVoiceConfig = { Global::get().s.prSquadRadioEar,
-														   Global::get().s.prSquadLeaderEar, nchan > 1 };
-			const ClientUser *prSelf                   = ClientUser::get(Global::get().uiSession);
-			const Channel *prSelfChannel               = prSelf ? prSelf->cChannel : nullptr;
+			const PRVoiceRouting::Config prVoiceConfig = {
+				Global::get().s.prSquadRadioEar, Global::get().s.prSquadLeaderEar,
+				PRVoiceRouting::isMuted(PRVoiceRouting::Category::SquadRadio),
+				PRVoiceRouting::isMuted(PRVoiceRouting::Category::SquadLeader), nchan > 1
+			};
+			const ClientUser *prSelf     = ClientUser::get(Global::get().uiSession);
+			const Channel *prSelfChannel = prSelf ? prSelf->cChannel : nullptr;
 
 			for (AudioOutputBuffer *buffer : qlMix) {
 				// Iterate through all audio sources and mix them together into the output (or the intermediate array)

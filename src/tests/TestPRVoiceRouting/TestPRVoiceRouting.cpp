@@ -63,17 +63,56 @@ private slots:
 	}
 
 	void pansHard() {
-		const Route left{ Ear::Left };
+		const Route left{ Ear::Left, false };
 		QCOMPARE(left.gainFor(-1.0f), 1.0f);
 		QCOMPARE(left.gainFor(-0.25f), 1.0f);
 		QCOMPARE(left.gainFor(0.0f), 0.0f);
 		QCOMPARE(left.gainFor(1.0f), 0.0f);
 
-		const Route right{ Ear::Right };
+		const Route right{ Ear::Right, false };
 		QCOMPARE(right.gainFor(-1.0f), 0.0f);
 		QCOMPARE(right.gainFor(0.0f), 0.0f);
 		QCOMPARE(right.gainFor(0.25f), 1.0f);
 		QCOMPARE(right.gainFor(1.0f), 1.0f);
+	}
+
+	void routesMutedShoutsWithoutAnEar() {
+		Config config           = {};
+		config.squadLeaderMuted = true;
+
+		QVERIFY(!route(true, true, config));
+
+		const std::optional< Route > squadLeader = route(true, false, config);
+		QVERIFY(squadLeader);
+		QVERIFY(squadLeader->muted);
+		QCOMPARE(squadLeader->gainFor(-1.0f), 0.0f);
+		QCOMPARE(squadLeader->gainFor(0.0f), 0.0f);
+		QCOMPARE(squadLeader->gainFor(1.0f), 0.0f);
+	}
+
+	void doesNotMuteSpeechOtherThanShouts() {
+		Config config           = {};
+		config.squadRadioMuted  = true;
+		config.squadLeaderMuted = true;
+
+		QVERIFY(!route(false, true, config));
+		QVERIFY(!route(false, false, config));
+	}
+
+	void togglesMutes() {
+		unmuteAll();
+		QVERIFY(toggleMuted(Category::SquadRadio));
+		QVERIFY(isMuted(Category::SquadRadio));
+		QVERIFY(!isMuted(Category::SquadLeader));
+
+		QVERIFY(toggleMuted(Category::SquadLeader));
+		QVERIFY(!toggleMuted(Category::SquadRadio));
+		QVERIFY(!isMuted(Category::SquadRadio));
+		QVERIFY(isMuted(Category::SquadLeader));
+
+		unmuteAll();
+		QVERIFY(!isMuted(Category::SquadRadio));
+		QVERIFY(!isMuted(Category::SquadLeader));
 	}
 };
 

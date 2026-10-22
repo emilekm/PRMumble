@@ -33,6 +33,7 @@
 #include "ListenerVolumeSlider.h"
 #include "Markdown.h"
 #include "MenuLabel.h"
+#include "PRVoiceRouting.h"
 #include "PTTButtonWidget.h"
 #include "PluginManager.h"
 #include "PositionalAudioViewer.h"
@@ -276,6 +277,18 @@ void MainWindow::createActions() {
 	gsPRSLCommander->qsWhatsThis = tr("This configures the SL to Commander button, and as long as you hold this button "
 									  "down, you will transmit to the commander, if you are a squad leader.",
 									  "Global Shortcut");
+
+	gsPRToggleSquadRadioMute = new GlobalShortcut(this, GlobalShortcutType::PRToggleSquadRadioMute,
+												  tr("Toggle Squad Radio Mute", "Global Shortcut"));
+	gsPRToggleSquadRadioMute->setObjectName(QLatin1String("PRToggleSquadRadioMute"));
+	gsPRToggleSquadRadioMute->qsToolTip =
+		tr("Press this button to stop or resume hearing your squad's radio", "Global Shortcut");
+
+	gsPRToggleSquadLeaderMute = new GlobalShortcut(this, GlobalShortcutType::PRToggleSquadLeaderMute,
+												   tr("Toggle SL / Command Mute", "Global Shortcut"));
+	gsPRToggleSquadLeaderMute->setObjectName(QLatin1String("PRToggleSquadLeaderMute"));
+	gsPRToggleSquadLeaderMute->qsToolTip =
+		tr("Press this button to stop or resume hearing other squad leaders and the commander", "Global Shortcut");
 
 
 	gsResetAudio =
@@ -3266,6 +3279,30 @@ void MainWindow::on_PRCommSLCommander_triggered(bool down, QVariant scdata) {
 	on_gsWhisper_triggered(down, scdata);
 }
 
+void MainWindow::on_PRToggleSquadRadioMute_triggered(bool down, QVariant) {
+	if (!down) {
+		return;
+	}
+
+	if (PRVoiceRouting::toggleMuted(PRVoiceRouting::Category::SquadRadio)) {
+		Global::get().l->log(Log::SelfMute, tr("Squad radio muted."));
+	} else {
+		Global::get().l->log(Log::SelfUnmute, tr("Squad radio unmuted."));
+	}
+}
+
+void MainWindow::on_PRToggleSquadLeaderMute_triggered(bool down, QVariant) {
+	if (!down) {
+		return;
+	}
+
+	if (PRVoiceRouting::toggleMuted(PRVoiceRouting::Category::SquadLeader)) {
+		Global::get().l->log(Log::SelfMute, tr("SL / Command voice muted."));
+	} else {
+		Global::get().l->log(Log::SelfUnmute, tr("SL / Command voice unmuted."));
+	}
+}
+
 /* Add and remove ShortcutTargets from the qmCurrentTargets Map, which counts
  * the number of push-to-talk events for a given ShortcutTarget.  If this number
  * reaches 0, the ShortcutTarget is removed from qmCurrentTargets.
@@ -3676,6 +3713,8 @@ void MainWindow::serverConnected() {
 void MainWindow::serverDisconnected(QAbstractSocket::SocketError err, QString reason) {
 	// clear ChannelListener
 	Global::get().channelListenerManager->clear();
+
+	PRVoiceRouting::unmuteAll();
 
 	// Reset move-back history
 	qaMoveBack->setEnabled(false);

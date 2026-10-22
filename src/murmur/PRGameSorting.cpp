@@ -120,13 +120,23 @@ void sortUser(Server &server, ServerUser &user) {
 	}
 
 	const Game *game = nullptr;
+	std::optional< std::string > ipPort;
 	std::optional< PRGameChannels::Identity > identity;
-	if (linked && !user.qsIdentity.isEmpty()) {
-		if (std::optional< std::string > ipPort = PRGameChannels::parseContextIPPort(user.ssContext)) {
-			game = PRGameChannels::findGameByIPPort(games, *ipPort);
-		}
+	if (!user.qsIdentity.isEmpty()) {
 		identity = PRGameChannels::parseIdentity(user.qsIdentity.toStdString());
 	}
+	if (linked) {
+		ipPort = PRGameChannels::parseContextIPPort(user.ssContext);
+		if (ipPort) {
+			game = PRGameChannels::findGameByIPPort(games, *ipPort);
+		}
+	}
+
+	const std::string contextPrefix = user.ssContext.substr(0, user.ssContext.find('\0'));
+	qDebug("%u => <%u:%s(%d)> PR: context \"%s\", identity %s, ipport \"%s\", game \"%s\"", server.iServerNum,
+		   user.uiSession, qPrintable(user.qsName), user.iId, contextPrefix.c_str(),
+		   user.qsIdentity.isEmpty() ? "missing" : (identity ? "valid" : "invalid"), ipPort ? ipPort->c_str() : "",
+		   game ? game->code.c_str() : "");
 
 	if (game && identity && isVerified(server, user, *game, *identity)) {
 		const PRGameChannels::Assignment assignment = PRGameChannels::assignmentFor(*game, *identity);

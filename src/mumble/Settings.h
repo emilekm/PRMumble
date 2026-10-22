@@ -27,6 +27,7 @@
 #include "Channel.h"
 #include "EchoCancelOption.h"
 #include "MumbleConstants.h"
+#include "PRVoiceRouting.h"
 #include "QuitBehavior.h"
 #include "SSL.h"
 #include "SearchDialog.h"
@@ -293,6 +294,9 @@ struct Settings {
 	bool bOnlyAttenuateSameOutput       = false;
 	bool bAttenuateLoopbacks            = false;
 	int iOutputDelay                    = 1;
+
+	PRVoiceRouting::Ear prSquadRadioEar  = PRVoiceRouting::Ear::Both;
+	PRVoiceRouting::Ear prSquadLeaderEar = PRVoiceRouting::Ear::Both;
 
 	QString qsALSAInput        = QStringLiteral("default");
 	QString qsALSAOutput       = QStringLiteral("default");

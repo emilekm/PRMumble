@@ -170,6 +170,8 @@ def getDefaultValueForType(dataType):
         return "Settings::RecordingMultichannel"
     elif dataType in ["StyleType"]:
         return "StyleType::Dark"
+    elif dataType in ["PRVoiceRouting::Ear"]:
+        return "PRVoiceRouting::Ear::Left"
     elif dataType.startswith("QMap") or dataType.startswith("QHash"):
         types = getTemplateArguments(dataType)
 

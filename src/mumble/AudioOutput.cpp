@@ -11,6 +11,7 @@
 #include "Channel.h"
 #include "ChannelListenerManager.h"
 #include "Log.h"
+#include "PRVoiceRouting.h"
 #include "PluginManager.h"
 #include "ServerHandler.h"
 #include "Timer.h"
@@ -24,6 +25,7 @@
 #include <chrono>
 #include <cmath>
 #include <memory>
+#include <optional>
 
 // Remember that we cannot use static member classes that are not pointers, as the constructor
 // for AudioOutputRegistrar() might be called before they are initialized, as the constructor
@@ -623,10 +625,16 @@ bool AudioOutput::mix(void *outbuff, unsigned int frameCount) {
 				}
 			}
 
+			const PRVoiceRouting::Config prVoiceConfig = { Global::get().s.prSquadRadioEar,
+														   Global::get().s.prSquadLeaderEar, nchan > 1 };
+			const ClientUser *prSelf                   = ClientUser::get(Global::get().uiSession);
+			const Channel *prSelfChannel               = prSelf ? prSelf->cChannel : nullptr;
+
 			for (AudioOutputBuffer *buffer : qlMix) {
 				// Iterate through all audio sources and mix them together into the output (or the intermediate array)
 				float *RESTRICT pfBuffer = buffer->pfBuffer;
 				float volumeAdjustment   = 1;
+				std::optional< PRVoiceRouting::Route > prRoute;
 
 				// Check if the audio source is a user speaking or a sample playback and apply potential volume
 				// adjustments
@@ -635,6 +643,9 @@ bool AudioOutput::mix(void *outbuff, unsigned int frameCount) {
 				ClientUser *user          = nullptr;
 				if (speech) {
 					user = speech->p;
+
+					prRoute = PRVoiceRouting::route(speech->m_audioContext == Mumble::Protocol::AudioContext::SHOUT,
+													user->cChannel == prSelfChannel, prVoiceConfig);
 
 					volumeAdjustment *= user->getLocalVolumeAdjustments();
 
@@ -709,7 +720,7 @@ bool AudioOutput::mix(void *outbuff, unsigned int frameCount) {
 
 				float maxVolume = 0.0f;
 
-				if (validListener
+				if (validListener && !prRoute
 					&& ((buffer->fPos[0] != 0.0f) || (buffer->fPos[1] != 0.0f) || (buffer->fPos[2] != 0.0f))) {
 					// Add position to position map
 #ifdef USE_MANUAL_PLUGIN
@@ -816,9 +827,10 @@ bool AudioOutput::mix(void *outbuff, unsigned int frameCount) {
 					// Mix the current audio source into the output by adding it to the elements of the output buffer
 					// after having applied a volume adjustment
 					for (unsigned int s = 0; s < nchan; ++s) {
-						const float channelVol = svol[s] * volumeAdjustment;
-						maxVolume              = std::max(maxVolume, channelVol);
-						float *RESTRICT o      = output + s;
+						const float channelVol =
+							svol[s] * volumeAdjustment * (prRoute ? prRoute->gainFor(fSpeakers[3 * s]) : 1.0f);
+						maxVolume         = std::max(maxVolume, channelVol);
+						float *RESTRICT o = output + s;
 						if (buffer->bStereo) {
 							// Linear-panning stereo stream according to the projection of fSpeaker vector on left-right
 							// direction.

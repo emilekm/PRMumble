@@ -48,6 +48,8 @@ prmurmurd --pr-add-game awesome --pr-name "Awesome PR Server" --pr-ipport "$GAME
           --pr-secret "$PR_SECRET" && exec prmurmurd --foreground
 ```
 
+The Docker image in [docker/](../docker/README.md) does this from the `PR_GAME_*` environment variables.
+
 Registering a code again with different settings, or an address that another game already uses,
 fails and changes nothing.
 

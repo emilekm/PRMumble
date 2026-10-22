@@ -1,0 +1,20 @@
+# Allow-list, so that untracked local files and build directories never end up in the image
+*
+!3rdparty/
+!auxiliary_files/
+!cmake/
+!helpers/
+!icons/
+!installer/
+!ipcutils/
+!macx/
+!overlay*/
+!plugins/
+!scripts/
+!src/
+!themes/
+!CMakeLists.txt
+!dependencies.json
+!LICENSE
+!docker/entrypoint.sh
+**/.git

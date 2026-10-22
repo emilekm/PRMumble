@@ -228,12 +228,12 @@ struct Settings {
 	quint64 uiDoublePush     = 0;
 	quint64 pttHold          = 300;
 
-	bool audioCueEnabledPTT = true;
+	bool audioCueEnabledPTT = false;
 	bool audioCueEnabledVAD = false;
 	QString qsTxAudioCueOn  = cqsDefaultPushClickOn;
 	QString qsTxAudioCueOff = cqsDefaultPushClickOff;
 
-	bool bTxMuteCue     = true;
+	bool bTxMuteCue     = false;
 	bool muteCueShown   = false;
 	QString qsTxMuteCue = cqsDefaultMuteCue;
 

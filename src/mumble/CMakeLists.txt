@@ -232,8 +232,6 @@ set(MUMBLE_SOURCES
 	"Settings.h"
 	"RealityData.cpp"
 	"RealityData.h"
-	"PRVoiceConfig.cpp"
-	"PRVoiceConfig.h"
 	"PRVoiceRouting.cpp"
 	"PRVoiceRouting.h"
 	"SharedMemory.cpp"
@@ -347,6 +345,10 @@ set(MUMBLE_SOURCES
 )
 set(MUMBLE_EXE_SOURCES
 	"main.cpp"
+	# Nothing references this page; it only registers itself through a static object, which the linker would drop
+	# from the static mumble_client_lib (it does with MSVC)
+	"PRVoiceConfig.cpp"
+	"PRVoiceConfig.h"
 
 	"mumble.qrc"
 	"${CMAKE_SOURCE_DIR}/themes/DefaultTheme.qrc"

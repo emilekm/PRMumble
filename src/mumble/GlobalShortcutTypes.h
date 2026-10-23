@@ -77,6 +77,8 @@ enum Type {
 	PRSLToSL8,
 	PRSLToSL9,
 	PRSLToCommander,
+	PRToggleSquadRadioMute,
+	PRToggleSquadLeaderMute,
 };
 
 // A few assertions meant to catch, if anyone inserts a new value in-between instead of appending

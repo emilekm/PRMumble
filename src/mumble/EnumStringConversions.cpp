@@ -154,6 +154,11 @@
 	PROCESS(OverlaySettings::OverlayExclusionMode, WhitelistExclusionMode, "Whitelist")           \
 	PROCESS(OverlaySettings::OverlayExclusionMode, BlacklistExclusionMode, "Blacklist")
 
+#define PR_EAR_VALUES                          \
+	PROCESS(PRVoiceRouting::Ear, Both, "Both") \
+	PROCESS(PRVoiceRouting::Ear, Left, "Left") \
+	PROCESS(PRVoiceRouting::Ear, Right, "Right")
+
 
 #define PROCESS_ALL_ENUMS                              \
 	BEFORE_CODE(Settings::AudioTransmit)               \
@@ -224,6 +229,9 @@
 	AFTER_CODE                                         \
 	BEFORE_CODE(OverlaySettings::OverlayExclusionMode) \
 	OVERLAY_EXCLUSION_MODE_VALUES                      \
+	AFTER_CODE                                         \
+	BEFORE_CODE(PRVoiceRouting::Ear)                   \
+	PR_EAR_VALUES                                      \
 	AFTER_CODE
 
 
@@ -263,6 +271,7 @@ PROCESS_ALL_ENUMS
 #undef AFTER_CODE
 #undef BEFORE_CODE
 #undef PROCESS_ALL_ENUMS
+#undef PR_EAR_VALUES
 #undef OVERLAY_EXCLUSION_MODE_VALUES
 #undef OVERLAY_SORT_VALUES
 #undef OVERLAY_SHOW_VALUES

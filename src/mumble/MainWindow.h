@@ -94,6 +94,7 @@ public:
 	GlobalShortcut *gsPushTalk, *gsResetAudio, *gsMuteSelf, *gsDeafSelf;
 	GlobalShortcut *gsPRSquad, *gsPRSLAll, *gsPRSL1, *gsPRSL2, *gsPRSL3, *gsPRSL4;
 	GlobalShortcut *gsPRSL5, *gsPRSL6, *gsPRSL7, *gsPRSL8, *gsPRSL9, *gsPRSLCommander;
+	GlobalShortcut *gsPRToggleSquadRadioMute, *gsPRToggleSquadLeaderMute;
 	GlobalShortcut *gsUnlink, *gsPushMute, *gsJoinChannel;
 #ifdef USE_OVERLAY
 	GlobalShortcut *gsToggleOverlay;
@@ -335,6 +336,8 @@ public slots:
 	void on_PRCommSL8_triggered(bool, QVariant);
 	void on_PRCommSL9_triggered(bool, QVariant);
 	void on_PRCommSLCommander_triggered(bool, QVariant);
+	void on_PRToggleSquadRadioMute_triggered(bool, QVariant);
+	void on_PRToggleSquadLeaderMute_triggered(bool, QVariant);
 	void addTarget(ShortcutTarget *);
 	void removeTarget(ShortcutTarget *);
 	void on_gsListenChannel_triggered(bool, QVariant);

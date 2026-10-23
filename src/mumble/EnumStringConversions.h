@@ -37,6 +37,7 @@ const char *enumToString(OverlaySettings::OverlayPresets e);
 const char *enumToString(OverlaySettings::OverlayShow e);
 const char *enumToString(OverlaySettings::OverlaySort e);
 const char *enumToString(OverlaySettings::OverlayExclusionMode e);
+const char *enumToString(PRVoiceRouting::Ear e);
 
 namespace details {
 
@@ -63,6 +64,7 @@ void stringToEnum(const std::string &str, OverlaySettings::OverlayPresets &e);
 void stringToEnum(const std::string &str, OverlaySettings::OverlayShow &e);
 void stringToEnum(const std::string &str, OverlaySettings::OverlaySort &e);
 void stringToEnum(const std::string &str, OverlaySettings::OverlayExclusionMode &e);
+void stringToEnum(const std::string &str, PRVoiceRouting::Ear &e);
 
 } // namespace details
 
